@@ -34,6 +34,6 @@ public class TimeLineRecyclerView extends RecyclerView {
     @Override
     protected void dispatchDraw(Canvas canvas) {
         super.dispatchDraw(canvas);
-        timeLineHelper.drawTime(canvas);
+        timeLineHelper.drawTimeLine(canvas);
     }
 }
