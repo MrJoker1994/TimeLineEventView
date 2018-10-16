@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.view.ViewTreeObserver;
+import android.widget.ScrollView;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -15,18 +16,25 @@ import io.git.zjoker.timelinerecyclerview.ui.widget.TimeLineRecyclerView;
 import io.git.zjoker.timelinerecyclerview.util.ViewUtil;
 
 public class TimeLineHelper {
-    private WeakReference<TimeLineRecyclerView> timeLineRVWR;
+    private WeakReference<ScrollView> timeLineRVWR;
     public static final String TIME_TEXT_FORMAT_HOUR = "%s:00";
     private static float UNIT_HEIGHT = ViewUtil.dpToPx(80);
-    private int heightRV;
+    private int vWidth;
     private List<TimeLineModel> timeLineModels;
     public static int TIME_LINE_TOTAL_COUNT = 24;
     private Paint timeTextP;
     private Paint timeLineP;
+    private Paint curTimeP;
     //    private int timeTextWidth;
     private int originPaddingLeft;
+    private int lineStartX;
+    private int lineEndX;
+    private float topSpace;
+    private float bottomSpace;
 
     public TimeLineHelper() {
+        topSpace = ViewUtil.dpToPx(30);
+        bottomSpace = topSpace;
         timeLineModels = new ArrayList<>();
         timeTextP = new Paint();
         timeTextP.setStrokeWidth(2);
@@ -36,42 +44,53 @@ public class TimeLineHelper {
         timeLineP = new Paint();
         timeLineP.setStrokeWidth(2);
         timeLineP.setColor(Color.GRAY);
+
+        curTimeP = new Paint();
+        curTimeP.setStrokeWidth(2);
+        curTimeP.setColor(Color.RED);
         reset();
     }
 
-    private TimeLineRecyclerView getRV() {
+    private ScrollView getRV() {
         return timeLineRVWR.get();
     }
 
-    public void attach(final TimeLineRecyclerView timeLineRecyclerView) {
+    public void attach(final ScrollView timeLineRecyclerView) {
         reset();
         this.timeLineRVWR = new WeakReference<>(timeLineRecyclerView);
         originPaddingLeft = getRV().getPaddingLeft();
 
-        adjustPadding();
         getRV().getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
             @Override
             public boolean onPreDraw() {
-                heightRV = getRV().getHeight();
-                calculateTimeLinesArray();
+                vWidth = getRV().getWidth();
+                adjustPadding();
                 getRV().getViewTreeObserver().removeOnPreDrawListener(this);
                 return true;
             }
         });
+        calculateTimeLinesArray();
+
         invalidate();
     }
 
     private void adjustPadding() {
         int timeTextWidth = (int) timeTextP.measureText(String.format(TIME_TEXT_FORMAT_HOUR, "00"));
-        getRV().setPadding(originPaddingLeft + timeTextWidth, getRV().getPaddingTop(), getRV().getPaddingRight(), getRV().getPaddingBottom());
+        lineStartX = originPaddingLeft + timeTextWidth;
+        lineEndX = getRV().getWidth() - getRV().getPaddingRight();
+    }
+
+    public float getTotalHeight() {
+        return getAllLineHeight() + topSpace + bottomSpace;
+    }
+
+    private float getAllLineHeight() {
+        return (TIME_LINE_TOTAL_COUNT - 1) * UNIT_HEIGHT;
     }
 
     private void calculateTimeLinesArray() {
-        Calendar instance = Calendar.getInstance();
-        instance.set(Calendar.HOUR_OF_DAY, 0);
-        int topPadding = getRV().getPaddingTop() + 80;
-
         String tip;
+        float topPadding = topSpace + getRV().getPaddingTop();
         for (int i = 0; i < TIME_LINE_TOTAL_COUNT; i++) {
             if (i < 10) {
                 tip = String.format(TIME_TEXT_FORMAT_HOUR, ("0" + i));
@@ -79,7 +98,6 @@ public class TimeLineHelper {
                 tip = String.format(TIME_TEXT_FORMAT_HOUR, i);
             }
             timeLineModels.add(new TimeLineModel(i * UNIT_HEIGHT + topPadding, tip));
-            instance.add(Calendar.HOUR_OF_DAY, 1);
         }
     }
 
@@ -88,24 +106,32 @@ public class TimeLineHelper {
         originPaddingLeft = 0;
     }
 
-    private int getAvailableHeight() {
-        return heightRV - getRV().getPaddingTop() - getRV().getPaddingBottom();
-    }
-
     private void invalidate() {
         getRV().invalidate();
     }
 
-    public void drawTimeLine(Canvas canvas) {
+    public void draw(Canvas canvas) {
         int save = canvas.save();
-        int lineStartX = getRV().getPaddingLeft();
-        int lineEndX = getRV().getWidth() - getRV().getPaddingRight();
-        int textLeft = originPaddingLeft;
+        drawTimeUnits(canvas);
+        drawCurTimeLine(canvas);
+        canvas.restoreToCount(save);
+    }
+
+    private void drawTimeUnits(Canvas canvas) {
+        int textLeft = getRV().getPaddingLeft();
         for (int i = 0; i < timeLineModels.size(); i++) {
             TimeLineModel timeLineModel = timeLineModels.get(i);
             canvas.drawText(timeLineModel.timeTip, textLeft, timeLineModel.yOffset, timeTextP);
             canvas.drawLine(lineStartX, timeLineModel.yOffset, lineEndX, timeLineModel.yOffset, timeLineP);
         }
-        canvas.restoreToCount(save);
+    }
+
+    private void drawCurTimeLine(Canvas canvas) {
+        long totalSecond = 24 * 60 * 60;
+        Calendar instance = Calendar.getInstance();
+        long curSecond = instance.get(Calendar.HOUR_OF_DAY) * 60 * 60 + instance.get(Calendar.MINUTE) * 60 + instance.get(Calendar.SECOND);
+
+        int yOffset = (int) ((getAllLineHeight() / totalSecond) * curSecond + topSpace + getRV().getPaddingTop());
+        canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
     }
 }
