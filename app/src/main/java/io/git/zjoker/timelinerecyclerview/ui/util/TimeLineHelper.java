@@ -3,6 +3,8 @@ package io.git.zjoker.timelinerecyclerview.ui.util;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.view.ViewTreeObserver;
 import android.widget.ScrollView;
 
@@ -141,5 +143,22 @@ public class TimeLineHelper {
 
         float yOffset = curSecond / totalSecond * getAllLineHeight() + getTopOffset();
         canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
+    }
+
+    public RectF getRectYByTime(long timeStempStart, long timeStempEnd) {
+        Calendar instance = Calendar.getInstance();
+        instance.setTimeInMillis(timeStempStart*1000);
+
+        int totalSecond = getTotalSecond();
+
+        float topOffset = timeStempStart * 1f / totalSecond * getAllLineHeight() + getTopOffset();
+        float bottomOffset = timeStempEnd* 1f / totalSecond * getAllLineHeight() + getTopOffset();
+
+        return new RectF(lineStartX, topOffset, lineEndX, bottomOffset);
+    }
+
+    public long getTimeByOffset(float offSetY) {
+        float radio = (offSetY - getTopOffset()) / getAllLineHeight();
+        return (long) (radio * getTotalSecond());
     }
 }
