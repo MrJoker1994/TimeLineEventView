@@ -90,14 +90,14 @@ public class TimeLineHelper {
 
     private void calculateTimeLinesArray() {
         String tip;
-        float topPadding = topSpace + getRV().getPaddingTop();
+        float topOffset = getTopOffset();
         for (int i = 0; i < TIME_LINE_TOTAL_COUNT; i++) {
             if (i < 10) {
                 tip = String.format(TIME_TEXT_FORMAT_HOUR, ("0" + i));
             } else {
                 tip = String.format(TIME_TEXT_FORMAT_HOUR, i);
             }
-            timeLineModels.add(new TimeLineModel(i * UNIT_HEIGHT + topPadding, tip));
+            timeLineModels.add(new TimeLineModel(i * UNIT_HEIGHT + topOffset, tip));
         }
     }
 
@@ -126,12 +126,20 @@ public class TimeLineHelper {
         }
     }
 
+    private float getTopOffset() {
+        return getRV().getPaddingTop() + topSpace;
+    }
+
+    private int getTotalSecond() {
+        return (TIME_LINE_TOTAL_COUNT - 1) * 60 * 60;
+    }
+
     private void drawCurTimeLine(Canvas canvas) {
-        long totalSecond = 24 * 60 * 60;
+        float totalSecond = getTotalSecond() * 1f;
         Calendar instance = Calendar.getInstance();
         long curSecond = instance.get(Calendar.HOUR_OF_DAY) * 60 * 60 + instance.get(Calendar.MINUTE) * 60 + instance.get(Calendar.SECOND);
 
-        int yOffset = (int) ((getAllLineHeight() / totalSecond) * curSecond + topSpace + getRV().getPaddingTop());
+        float yOffset = curSecond / totalSecond * getAllLineHeight() + getTopOffset();
         canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
     }
 }
