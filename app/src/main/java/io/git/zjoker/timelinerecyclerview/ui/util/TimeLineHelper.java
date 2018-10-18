@@ -145,14 +145,11 @@ public class TimeLineHelper {
         canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
     }
 
-    public RectF getRectYByTime(long timeStempStart, long timeStempEnd) {
-        Calendar instance = Calendar.getInstance();
-        instance.setTimeInMillis(timeStempStart*1000);
-
+    public RectF getRectYByTime(long timeStampStart, long timeStampEnd) {
         int totalSecond = getTotalSecond();
 
-        float topOffset = timeStempStart * 1f / totalSecond * getAllLineHeight() + getTopOffset();
-        float bottomOffset = timeStempEnd* 1f / totalSecond * getAllLineHeight() + getTopOffset();
+        float topOffset = timeStampStart * 1f / totalSecond * getAllLineHeight() + getTopOffset();
+        float bottomOffset = timeStampEnd* 1f / totalSecond * getAllLineHeight() + getTopOffset();
 
         return new RectF(lineStartX, topOffset, lineEndX, bottomOffset);
     }
