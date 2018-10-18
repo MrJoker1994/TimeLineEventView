@@ -18,23 +18,24 @@ public class EventHelper {
     private WeakReference<TimeLineEventView> timeLineEventViewWR;
     private Paint eventSolidP;
     private GestureDetector gestureDetector;
+    public static final long DEFAUL_EVENT_SPAN = 30 * 60;
 
     public EventHelper() {
         this.eventModels = new ArrayList<>();
         eventSolidP = new Paint();
         eventSolidP.setStyle(Paint.Style.FILL);
-        eventSolidP.setColor(Color.BLUE);
+        eventSolidP.setColor(Color.parseColor("#AAAAAAFF"));
 
     }
 
     public void attach(TimeLineEventView timeLineEventView) {
-        timeLineEventViewWR = new WeakReference(timeLineEventView);
+        timeLineEventViewWR = new WeakReference<>(timeLineEventView);
         gestureDetector = new GestureDetector(timeLineEventView.getContext(), new GestureDetector.SimpleOnGestureListener() {
             @Override
             public void onLongPress(MotionEvent e) {
                 super.onLongPress(e);
                 long timeStart = getV().getTimeByOffset(e.getY());
-                long timeEnd = timeStart + 1000;
+                long timeEnd = timeStart + DEFAUL_EVENT_SPAN;
                 eventModels.add(new EventModel(timeStart, timeEnd));
                 getV().invalidate();
             }

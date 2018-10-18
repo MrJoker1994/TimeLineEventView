@@ -58,7 +58,7 @@ public class TimeLineEventView extends ScrollView {
     }
 
     public long getTimeByOffset(float offSetY) {
-        return timeLineHelper.getTimeByOffset(offSetY);
+        return timeLineHelper.getTimeByOffset(getScrollY() + offSetY);
     }
 
     private void setSpaceViewHeight(int height) {
