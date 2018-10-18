@@ -1,4 +1,4 @@
-package io.git.zjoker.timelinerecyclerview.ui.event.model;
+package io.git.zjoker.timelineeventview.ui.event.model;
 
 public class EventModel {
     public static final int STATUS_NORMAL = 0;

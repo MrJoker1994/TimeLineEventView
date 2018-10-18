@@ -1,13 +1,10 @@
-package io.git.zjoker.timelinerecyclerview.ui.event.util;
+package io.git.zjoker.timelineeventview.ui.event.util;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Point;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.RectF;
-import android.support.annotation.Size;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 
@@ -15,13 +12,13 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.git.zjoker.timelinerecyclerview.ui.event.model.EventModel;
-import io.git.zjoker.timelinerecyclerview.ui.widget.TimeLineEventView;
-import io.git.zjoker.timelinerecyclerview.util.ViewUtil;
+import io.git.zjoker.timelineeventview.ui.event.model.EventModel;
+import io.git.zjoker.timelineeventview.ui.widget.TimeLineEventView;
+import io.git.zjoker.timelineeventview.util.ViewUtil;
 
-import static io.git.zjoker.timelinerecyclerview.ui.event.model.EventModel.STATUS_EDITING;
-import static io.git.zjoker.timelinerecyclerview.ui.event.model.EventModel.STATUS_NORMAL;
-import static io.git.zjoker.timelinerecyclerview.ui.event.model.EventModel.STATUS_SCALING_TOP;
+import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_EDITING;
+import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_NORMAL;
+import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_SCALING_TOP;
 
 public class EventHelper {
     private List<EventModel> eventModels;

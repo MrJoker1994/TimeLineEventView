@@ -1,4 +1,4 @@
-package io.git.zjoker.timelinerecyclerview;
+package io.git.zjoker.timelineeventview;
 
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;

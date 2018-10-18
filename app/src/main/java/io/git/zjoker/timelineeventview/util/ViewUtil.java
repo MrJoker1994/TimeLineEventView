@@ -1,10 +1,10 @@
-package io.git.zjoker.timelinerecyclerview.util;
+package io.git.zjoker.timelineeventview.util;
 
 import android.content.res.Resources;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 
-import io.git.zjoker.timelinerecyclerview.App;
+import io.git.zjoker.timelineeventview.App;
 
 public class ViewUtil {
     public static float dpToPx(int dp) {

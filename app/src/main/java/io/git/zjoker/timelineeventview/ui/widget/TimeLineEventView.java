@@ -1,4 +1,4 @@
-package io.git.zjoker.timelinerecyclerview.ui.widget;
+package io.git.zjoker.timelineeventview.ui.widget;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -10,8 +10,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ScrollView;
 
-import io.git.zjoker.timelinerecyclerview.ui.event.util.EventHelper;
-import io.git.zjoker.timelinerecyclerview.ui.timeline.util.TimeLineHelper;
+import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
+import io.git.zjoker.timelineeventview.ui.timeline.util.TimeLineHelper;
 
 public class TimeLineEventView extends ScrollView {
     private TimeLineHelper timeLineHelper;

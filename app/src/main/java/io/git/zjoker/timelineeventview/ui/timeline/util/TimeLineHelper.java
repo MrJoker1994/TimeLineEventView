@@ -1,4 +1,4 @@
-package io.git.zjoker.timelinerecyclerview.ui.timeline.util;
+package io.git.zjoker.timelineeventview.ui.timeline.util;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -12,8 +12,8 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
-import io.git.zjoker.timelinerecyclerview.ui.timeline.model.TimeLineModel;
-import io.git.zjoker.timelinerecyclerview.util.ViewUtil;
+import io.git.zjoker.timelineeventview.ui.timeline.model.TimeLineModel;
+import io.git.zjoker.timelineeventview.util.ViewUtil;
 
 public class TimeLineHelper {
     private WeakReference<ScrollView> timeLineRVWR;
@@ -55,9 +55,9 @@ public class TimeLineHelper {
         return timeLineRVWR.get();
     }
 
-    public void attach(final ScrollView timeLineRecyclerView) {
+    public void attach(final ScrollView TimeLineEventView) {
         reset();
-        this.timeLineRVWR = new WeakReference<>(timeLineRecyclerView);
+        this.timeLineRVWR = new WeakReference<>(TimeLineEventView);
         originPaddingLeft = getRV().getPaddingLeft();
 
         getRV().getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {

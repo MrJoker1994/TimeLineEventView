@@ -1,4 +1,4 @@
-package io.git.zjoker.timelinerecyclerview;
+package io.git.zjoker.timelineeventview;
 
 import org.junit.Test;
 
