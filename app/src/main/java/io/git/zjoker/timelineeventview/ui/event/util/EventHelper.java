@@ -60,10 +60,6 @@ public class EventHelper {
                 EventModel eventWillEdit;
                 if ((eventWillEdit = getEventUnderTouch(e.getX(), e.getY() + getV().getScrollY())) != null) {
                     eventWillEdit.changeToEdit();
-                } else if ((eventWillEdit = getTopEventHandlerUnderTouch(e.getX(), e.getY() + getV().getScrollY())) != null) {
-                    eventWillEdit.changeToScaleTop();
-                } else if ((eventWillEdit = getBottomEventHandlerUnderTouch(e.getX(), e.getY() + getV().getScrollY())) != null) {
-                    eventWillEdit.changeToScaleBottom();
                 } else {
                     eventModels.add(createEvent(e.getY()));
                 }
@@ -74,9 +70,17 @@ public class EventHelper {
             public boolean onDown(MotionEvent e) {
                 EventModel eventUnderTouch = getEventUnderTouch(e.getX(), e.getY() + getV().getScrollY());
                 EventModel eventEditing = getEditingEvent();
-                if (eventUnderTouch != eventEditing) {
-                    resetEventStatus();
-                    invalidate();
+                if (eventEditing != null) {
+                    if (isUnderTopScaler(eventEditing, e.getX(), e.getY() + getV().getScrollY())) {
+                        eventEditing.changeToScaleTop();
+                    } else if (isUnderBottomScaler(eventEditing, e.getX(), e.getY() + getV().getScrollY())) {
+                        eventEditing.changeToScaleBottom();
+                    } else if (eventUnderTouch == eventEditing) {
+                        eventEditing.changeToEdit();
+                    } else {
+                        resetEventStatus();
+                        invalidate();
+                    }
                 }
                 return super.onDown(e);
             }
@@ -98,37 +102,24 @@ public class EventHelper {
         return null;
     }
 
-    private EventModel getTopEventHandlerUnderTouch(float touchX, float touchY) {
-        for (int i = 0; i < eventModels.size(); i++) {
-            EventModel eventModel = eventModels.get(i);
-            RectF rectF = getV().getRectYByTime(eventModel.timeStart, eventModel.timeTaken);
+    private boolean isUnderTopScaler(EventModel editingEvent, float touchX, float touchY) {
+        RectF rectF = getV().getRectYByTime(editingEvent.timeStart, editingEvent.timeTaken);
 
-            PointF topDragHandlerPoint = getTopDragHandlerPoint(rectF);
-            if (getDragHandlerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY)) {
-                return eventModel;
-            }
-        }
-        return null;
+        PointF topDragHandlerPoint = getTopDragHandlerPoint(rectF);
+        return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
     }
 
-    private EventModel getBottomEventHandlerUnderTouch(float touchX, float touchY) {
-        for (int i = 0; i < eventModels.size(); i++) {
-            EventModel eventModel = eventModels.get(i);
-            RectF rectF = getV().getRectYByTime(eventModel.timeStart, eventModel.timeTaken);
-
-            PointF bottomDragHandlerPoint = getBottomDragHandlerPoint(rectF);
-            if (getDragHandlerRectF(bottomDragHandlerPoint.x, bottomDragHandlerPoint.y).contains(touchX, touchY)) {
-                return eventModel;
-            }
-        }
-        return null;
+    private boolean isUnderBottomScaler(EventModel editingEvent, float touchX, float touchY) {
+        RectF rectF = getV().getRectYByTime(editingEvent.timeStart, editingEvent.timeTaken);
+        PointF topDragHandlerPoint = getBottomDragHandlerPoint(rectF);
+        return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
     }
 
     private boolean isInRect(RectF rectF, float x, float y) {
         return rectF.contains(x, y + getV().getScrollY());
     }
 
-    private RectF getDragHandlerRectF(float x, float y) {
+    private RectF getScalerRectF(float x, float y) {
         return new RectF(x - dragHandlerRadius, y - dragHandlerRadius, x + dragHandlerRadius, y + dragHandlerRadius);
     }
 
@@ -145,23 +136,23 @@ public class EventHelper {
             case MotionEvent.ACTION_CANCEL:
                 break;
             case MotionEvent.ACTION_MOVE:
-                moveEvent(motionEvent.getY());
+                checkEditEvent(motionEvent.getX(), motionEvent.getY());
                 break;
         }
         return getEditingEvent() != null;
     }
 
-    private void moveEvent(float newTouchY) {
+    private void checkEditEvent(float touchX, float touchY) {
         EventModel event = getEditingEvent();
         if (event != null) {
             if (event.status == STATUS_EDITING) {
-                long timeStart = getV().getTimeByOffset(newTouchY);
+                long timeStart = getV().getTimeByOffset(touchY);
                 event.moveTo(timeStart);
             } else if (event.status == STATUS_SCALING_TOP) {
-                long timeStart = getV().getTimeByOffset(newTouchY);
+                long timeStart = getV().getTimeByOffset(touchY);
                 event.scaleTopTo(timeStart);
             } else {
-                long timeEnd = getV().getTimeByOffset(newTouchY);
+                long timeEnd = getV().getTimeByOffset(touchY);
                 event.scaleBottomTo(timeEnd);
             }
             invalidate();
@@ -193,7 +184,7 @@ public class EventHelper {
     private void drawEvent(int index, EventModel eventModel, Canvas canvas) {
         RectF rectF = getV().getRectYByTime(eventModel.timeStart, eventModel.timeTaken);
         canvas.drawRect(rectF, eventSolidP);
-        if (eventModel.status == STATUS_EDITING) {
+        if (eventModel.status != STATUS_NORMAL) {
             drawEdit(canvas, eventModel, rectF);
         }
     }
