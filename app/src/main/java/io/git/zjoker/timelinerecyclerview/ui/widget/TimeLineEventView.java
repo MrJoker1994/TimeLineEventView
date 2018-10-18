@@ -11,7 +11,7 @@ import android.view.View;
 import android.widget.ScrollView;
 
 import io.git.zjoker.timelinerecyclerview.ui.event.util.EventHelper;
-import io.git.zjoker.timelinerecyclerview.ui.util.TimeLineHelper;
+import io.git.zjoker.timelinerecyclerview.ui.timeline.util.TimeLineHelper;
 
 public class TimeLineEventView extends ScrollView {
     private TimeLineHelper timeLineHelper;
@@ -46,8 +46,8 @@ public class TimeLineEventView extends ScrollView {
         eventHelper.attach(this);
     }
 
-    public RectF getRectYByTime(long timeStempStart, long timeStempEnd) {
-        return timeLineHelper.getRectYByTime(timeStempStart, timeStempEnd);
+    public RectF getRectYByTime(long timeStampStart, long timeTaken) {
+        return timeLineHelper.getRectYByTime(timeStampStart, timeTaken);
     }
 
     public long getTimeByOffset(float offSetY) {

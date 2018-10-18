@@ -1,9 +1,8 @@
-package io.git.zjoker.timelinerecyclerview.ui.util;
+package io.git.zjoker.timelinerecyclerview.ui.timeline.util;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.ViewTreeObserver;
 import android.widget.ScrollView;
@@ -13,8 +12,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
-import io.git.zjoker.timelinerecyclerview.ui.model.TimeLineModel;
-import io.git.zjoker.timelinerecyclerview.ui.widget.TimeLineRecyclerView;
+import io.git.zjoker.timelinerecyclerview.ui.timeline.model.TimeLineModel;
 import io.git.zjoker.timelinerecyclerview.util.ViewUtil;
 
 public class TimeLineHelper {
@@ -145,11 +143,13 @@ public class TimeLineHelper {
         canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
     }
 
-    public RectF getRectYByTime(long timeStampStart, long timeStampEnd) {
+    public RectF getRectYByTime(long timeStampStart, long timeTaken) {
         int totalSecond = getTotalSecond();
 
         float topOffset = timeStampStart * 1f / totalSecond * getAllLineHeight() + getTopOffset();
-        float bottomOffset = timeStampEnd* 1f / totalSecond * getAllLineHeight() + getTopOffset();
+
+        long timeStampEnd = timeStampStart + timeTaken;
+        float bottomOffset = timeStampEnd * 1f / totalSecond * getAllLineHeight() + getTopOffset();
 
         return new RectF(lineStartX, topOffset, lineEndX, bottomOffset);
     }

@@ -1,4 +1,4 @@
-package io.git.zjoker.timelinerecyclerview.ui.model;
+package io.git.zjoker.timelinerecyclerview.ui.timeline.model;
 
 public class TimeLineModel {
     public long timeStamp;
