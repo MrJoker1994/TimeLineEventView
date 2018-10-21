@@ -6,6 +6,7 @@ import android.graphics.RectF;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ScrollView;
@@ -44,14 +45,16 @@ public class TimeLineEventView extends ScrollView {
 
         eventHelper = new EventHelper();
         eventHelper.attach(this);
+
+        eventHelper.setEventAdjustListener(timeLineHelper);
     }
 
-    public RectF getRectYByTime(long timeStampStart, long timeTaken) {
-        return timeLineHelper.getRectYByTime(timeStampStart, timeTaken);
+    public RectF getRectOnTimeLine(long timeStampStart, long timeTaken) {
+        return timeLineHelper.getRectOnTimeLine(timeStampStart, timeTaken);
     }
 
-    public long getTimeByOffset(float offSetY) {
-        return timeLineHelper.getTimeByOffset(getScrollY() + offSetY);
+    public long getTimeByOffsetY(float offSetY) {
+        return timeLineHelper.getTimeByOffsetY(getScrollY() + offSetY);
     }
 
     private void setSpaceViewHeight(int height) {

@@ -4,6 +4,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.text.TextUtils;
 import android.view.ViewTreeObserver;
 import android.widget.ScrollView;
 
@@ -12,10 +13,11 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
+import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.model.TimeLineModel;
 import io.git.zjoker.timelineeventview.util.ViewUtil;
 
-public class TimeLineHelper {
+public class TimeLineHelper implements EventHelper.EventAdjustListener {
     private WeakReference<ScrollView> timeLineRVWR;
     public static final String TIME_TEXT_FORMAT_HOUR = "%s:00";
     private static float UNIT_HEIGHT = ViewUtil.dpToPx(80);
@@ -31,6 +33,9 @@ public class TimeLineHelper {
     private int lineEndX;
     private float topSpace;
     private float bottomSpace;
+
+    private boolean eventAdjusting;
+    private long timeAdjust;
 
     public TimeLineHelper() {
         topSpace = ViewUtil.dpToPx(30);
@@ -114,7 +119,35 @@ public class TimeLineHelper {
         int save = canvas.save();
         drawTimeUnits(canvas);
         drawCurTimeLine(canvas);
+        checkDrawTimeWhenEventAdjusting(canvas);
         canvas.restoreToCount(save);
+    }
+
+    private void checkDrawTimeWhenEventAdjusting(Canvas canvas) {
+        if (eventAdjusting) {
+            String adjustingUnit = getAdjustingUnit(timeAdjust);
+            if (!TextUtils.isEmpty(adjustingUnit)) {
+                float textWidth = timeTextP.measureText(adjustingUnit);
+                float offsetY = getOffsetYByTime(timeAdjust);
+                canvas.drawText(adjustingUnit, lineStartX - textWidth, offsetY, timeTextP);
+            }
+        }
+    }
+
+    private String getAdjustingUnit(long timeAdjust) {
+        Calendar instance = Calendar.getInstance();
+        instance.setTimeInMillis(timeAdjust * 1000);
+        int minute = instance.get(Calendar.MINUTE);
+        if (15 < minute && minute < 30) {
+            minute = 15;
+        } else if (30 <= minute && minute < 45) {
+            minute = 30;
+        } else if (45 <= minute && minute < 60) {
+            minute = 45;
+        } else {
+            return null;
+        }
+        return String.format(":%s", minute);
     }
 
     private void drawTimeUnits(Canvas canvas) {
@@ -143,19 +176,32 @@ public class TimeLineHelper {
         canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
     }
 
-    public RectF getRectYByTime(long timeStampStart, long timeTaken) {
-        int totalSecond = getTotalSecond();
-
-        float topOffset = timeStampStart * 1f / totalSecond * getAllLineHeight() + getTopOffset();
+    public RectF getRectOnTimeLine(long timeStampStart, long timeTaken) {
+        float topOffset = getOffsetYByTime(timeStampStart);
 
         long timeStampEnd = timeStampStart + timeTaken;
-        float bottomOffset = timeStampEnd * 1f / totalSecond * getAllLineHeight() + getTopOffset();
+        float bottomOffset = getOffsetYByTime(timeStampEnd);
 
         return new RectF(lineStartX, topOffset, lineEndX, bottomOffset);
     }
 
-    public long getTimeByOffset(float offSetY) {
+    private float getOffsetYByTime(long timeStamp) {
+        return timeStamp * 1f / getTotalSecond() * getAllLineHeight() + getTopOffset();
+    }
+
+    public long getTimeByOffsetY(float offSetY) {
         float radio = (offSetY - getTopOffset()) / getAllLineHeight();
         return (long) (radio * getTotalSecond());
+    }
+
+    @Override
+    public void onEventAdjusting(long timeAdjust) {
+        this.eventAdjusting = true;
+        this.timeAdjust = timeAdjust;
+    }
+
+    @Override
+    public void onEventAdjustEnd() {
+        this.eventAdjusting = false;
     }
 }
