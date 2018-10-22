@@ -62,6 +62,18 @@ public class TimeLineEventView extends ScrollView {
         spaceView.requestLayout();
     }
 
+    public int getTotalHeight() {
+        return spaceView.getHeight();
+    }
+
+
+    public boolean canScroll(boolean isScrollToUp) {
+        if(isScrollToUp) {
+            return getScrollY() < getTotalHeight() - getHeight();
+        } else {
+            return getScrollY() > 0;
+        }
+    }
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {

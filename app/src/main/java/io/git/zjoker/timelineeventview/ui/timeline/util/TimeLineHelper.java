@@ -150,6 +150,7 @@ public class TimeLineHelper implements EventHelper.EventAdjustListener {
         return String.format(":%s", minute);
     }
 
+
     private void drawTimeUnits(Canvas canvas) {
         int textLeft = getRV().getPaddingLeft();
         for (int i = 0; i < timeLineModels.size(); i++) {

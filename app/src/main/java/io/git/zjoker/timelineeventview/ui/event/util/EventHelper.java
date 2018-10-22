@@ -1,10 +1,15 @@
 package io.git.zjoker.timelineeventview.ui.event.util;
 
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 
@@ -21,6 +26,7 @@ import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_N
 import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_SCALING_TOP;
 
 public class EventHelper {
+    public static final int WHAT_SCROLL = 1;
     private List<EventModel> eventModels;
     private WeakReference<TimeLineEventView> timeLineEventViewWR;
     private Paint eventSolidP;
@@ -162,21 +168,32 @@ public class EventHelper {
     public boolean onTouchEvent(MotionEvent motionEvent) {
         gestureDetector.onTouchEvent(motionEvent);
         switch (motionEvent.getAction()) {
+            case MotionEvent.ACTION_DOWN:
+                lastTouchY = motionEvent.getY();
+                break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
+                stopAnimator();
                 if (hasEventUnderTouch && eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustEnd();
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
+                distance = motionEvent.getY() - lastTouchY;
+                lastTouchY = motionEvent.getY();
                 if (hasEventUnderTouch) {
-                    checkEditEvent(motionEvent.getX(), motionEvent.getY());
+                    if (!checkScroll(lastTouchY)) {
+                        checkEditEvent(motionEvent.getX(), lastTouchY);
+                    }
                     return true;
                 }
                 break;
         }
         return hasEventUnderTouch;
     }
+
+    private float distance;
+    private float lastTouchY;
 
     private boolean checkEditEvent(float touchX, float touchY) {
         EventModel event = getEditingEvent();
@@ -199,6 +216,53 @@ public class EventHelper {
             return true;
         }
         return false;
+    }
+
+    private boolean checkScroll(float touchY) {
+        int adjustSpace = getV().getHeight() / 8;
+        if (touchY < adjustSpace && distance <= 0 && getV().canScroll(false)) {
+            buildAnimator(false);
+        } else if (touchY > getV().getHeight() - adjustSpace && distance >= 0 && getV().canScroll(true)) {
+            buildAnimator(true);
+            return true;
+        } else {
+            stopAnimator();
+        }
+        return false;
+    }
+
+    private ValueAnimator scrollAnimator;
+
+    private void buildAnimator(boolean isScrollUp) {
+        if (scrollAnimator != null && scrollAnimator.isRunning()) {
+            return;
+        }
+
+        int from;
+        int target;
+        if (isScrollUp) {
+            from = getV().getScrollY();
+            target = getV().getTotalHeight() - getV().getHeight();
+        } else {
+            from = getV().getScrollY();
+            target = 0;
+        }
+        scrollAnimator = ObjectAnimator.ofInt(from, target).setDuration(Math.abs(target - from));
+        scrollAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                int scrollTo = (int) animation.getAnimatedValue();
+                getV().scrollTo(0, scrollTo);
+                checkEditEvent(0, lastTouchY);
+            }
+        });
+        scrollAnimator.start();
+    }
+
+    private void stopAnimator() {
+        if (scrollAnimator != null) {
+            scrollAnimator.cancel();
+        }
     }
 
     private EventModel getEditingEvent() {
@@ -260,6 +324,7 @@ public class EventHelper {
 
     public interface EventAdjustListener {
         void onEventAdjusting(long timeAdjust);
+
         void onEventAdjustEnd();
     }
 }
