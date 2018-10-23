@@ -6,24 +6,31 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
+import android.graphics.Rect;
 import android.graphics.RectF;
+import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
-import io.git.zjoker.timelineeventview.ui.event.model.EventModel;
+import io.git.zjoker.timelineeventview.ui.event.model.Event;
+import io.git.zjoker.timelineeventview.ui.event.model.EventNode;
 import io.git.zjoker.timelineeventview.ui.widget.TimeLineEventView;
 import io.git.zjoker.timelineeventview.util.ViewUtil;
 
-import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_EDITING;
-import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_NORMAL;
-import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_SCALING_TOP;
+import static io.git.zjoker.timelineeventview.ui.event.model.Event.STATUS_EDITING;
+import static io.git.zjoker.timelineeventview.ui.event.model.Event.STATUS_NORMAL;
+import static io.git.zjoker.timelineeventview.ui.event.model.Event.STATUS_SCALING_TOP;
 
 public class EventHelper {
-    private List<EventModel> eventModels;
+    private List<Event> events;
     private WeakReference<TimeLineEventView> timeLineEventViewWR;
     private Paint eventSolidP;
     private Paint eventEditP;
@@ -40,9 +47,10 @@ public class EventHelper {
     private float lastTouchY;
 
     private ValueAnimator scrollAnimator;
+    private EventNode eventNode;
 
     public EventHelper() {
-        this.eventModels = new ArrayList<>();
+        this.events = new ArrayList<>();
         eventSolidP = new Paint();
         eventSolidP.setStyle(Paint.Style.FILL);
         eventSolidP.setColor(Color.parseColor("#AAAAAAFF"));
@@ -63,6 +71,89 @@ public class EventHelper {
         this.eventAdjustListener = eventAdjustListener;
     }
 
+    private EventNode buildEventTree() {
+        List<Event> tmpEvent = new ArrayList<>(events);
+        Collections.sort(tmpEvent, new Comparator<Event>() {
+            @Override
+            public int compare(Event o1, Event o2) {
+                return (int) (o1.timeStart - o2.timeStart);
+            }
+        });
+
+        EventNode rootNode = new EventNode();
+        if (tmpEvent.size() == 0) {
+
+        } else if (tmpEvent.size() == 1) {
+            EventNode childNode = new EventNode();
+            childNode.event = tmpEvent.get(0);
+            childNode.level = rootNode.level + 1;
+            rootNode.appendChildNode(childNode);
+        } else {
+            EventNode childNode = new EventNode();
+            childNode.event = tmpEvent.get(0);
+            childNode.level = rootNode.level + 1;
+            rootNode.appendChildNode(childNode);
+            tmpEvent.remove(0);
+            buildEventTree(childNode, tmpEvent.get(0), tmpEvent);
+        }
+        Log.d("EventNode", rootNode.toString());
+        return rootNode;
+    }
+
+    private void buildEventTree(EventNode node, Event event, List<Event> events) {
+        Iterator<Event> iterator = events.iterator();
+        RectF parentRect = getV().getRectOnTimeLine(event.timeStart, event.timeTaken);
+        while (iterator.hasNext()) {
+            Event childEvent = iterator.next();
+            RectF childRect = getV().getRectOnTimeLine(childEvent.timeStart, childEvent.timeTaken);
+            if (parentRect.equals(childRect)) {
+                iterator.remove();
+                EventNode childNode = new EventNode();
+                childNode.event = childEvent;
+                childNode.level = node.level;
+                node.appendSameNode(childNode);
+            } else if (!RectF.intersects(parentRect, childRect)) {
+                iterator.remove();
+                EventNode childNode = new EventNode();
+                childNode.event = childEvent;
+                childNode.level = node.level + 1;
+                node.appendChildNode(childNode);
+                buildEventTree(childNode, childEvent, new LinkedList<>(events));
+            } else {
+                EventNode parentNode = node.parentNode;
+                if(parentNode != null) {
+                    if(parentNode.event == null) {
+                        iterator.remove();
+                        EventNode childNode = new EventNode();
+                        childNode.event = childEvent;
+                        childNode.level = node.level;
+                        node.parentNode.appendChildNode(childNode);
+                        buildEventTree(childNode, childEvent, new LinkedList<>(events));
+                    } else if(RectF.intersects(getV().getRectOnTimeLine(parentNode.event.timeStart, parentNode.event.timeTaken), childRect)) {
+                        iterator.remove();
+                        EventNode childNode = new EventNode();
+                        childNode.event = childEvent;
+                        childNode.level = node.level;
+                        node.parentNode.appendChildNode(childNode);
+                        buildEventTree(childNode, childEvent, new LinkedList<>(events));
+                    }
+                }
+            }
+        }
+
+        if (events.size() > 0) {
+            iterator = events.iterator();
+            while (iterator.hasNext()) {
+                Event childEvent = iterator.next();
+                iterator.remove();
+                EventNode childNode = new EventNode();
+                childNode.event = childEvent;
+                childNode.level = node.level;
+                node.parentNode.appendChildNode(childNode);
+                buildEventTree(childNode, childEvent, new LinkedList<>(events));
+            }
+        }
+    }
 
     public void attach(TimeLineEventView timeLineEventView) {
         timeLineEventViewWR = new WeakReference<>(timeLineEventView);
@@ -75,11 +166,11 @@ public class EventHelper {
                 float touchY = getYWithScroll(e.getY());
 
                 if (getEventEditing() == null) {
-                    EventModel eventUnderTouch = getEventUnderTouch(touchX, touchY);
+                    Event eventUnderTouch = getEventUnderTouch(touchX, touchY);
                     if (eventUnderTouch == null) {
                         eventUnderTouch = createEvent(e.getY());
                         eventUnderTouch.changeToEdit();
-                        eventModels.add(eventUnderTouch);
+                        events.add(eventUnderTouch);
                     } else {
                         eventUnderTouch.changeToEdit();
                     }
@@ -95,7 +186,7 @@ public class EventHelper {
             public boolean onDown(MotionEvent e) {
                 float touchX = e.getX();
                 float touchY = getYWithScroll(e.getY());
-                EventModel eventEditing = getEventEditing();
+                Event eventEditing = getEventEditing();
                 if (eventEditing != null) {
                     if (isTopScalerUnderTouch(eventEditing, touchX, touchY)) {
                         eventEditing.changeToScaleTop();
@@ -134,7 +225,7 @@ public class EventHelper {
         return touchY + getV().getScrollY();
     }
 
-    private boolean isEventUnderTouch(EventModel eventModel, float touchX, float touchY) {
+    private boolean isEventUnderTouch(Event eventModel, float touchX, float touchY) {
         RectF rectF = getV().getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
         return rectF.contains(touchX, touchY);
     }
@@ -143,9 +234,9 @@ public class EventHelper {
         getV().invalidate();
     }
 
-    private EventModel getEventUnderTouch(float touchX, float touchY) {
-        for (int i = 0; i < eventModels.size(); i++) {
-            EventModel eventModel = eventModels.get(i);
+    private Event getEventUnderTouch(float touchX, float touchY) {
+        for (int i = 0; i < events.size(); i++) {
+            Event eventModel = events.get(i);
             if (isEventUnderTouch(eventModel, touchX, touchY)) {
                 return eventModel;
             }
@@ -153,14 +244,14 @@ public class EventHelper {
         return null;
     }
 
-    private boolean isTopScalerUnderTouch(EventModel editingEvent, float touchX, float touchY) {
+    private boolean isTopScalerUnderTouch(Event editingEvent, float touchX, float touchY) {
         RectF rectF = getV().getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
 
         PointF topDragHandlerPoint = getTopScallerPoint(rectF);
         return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
     }
 
-    private boolean isBottomScalerUnderTouch(EventModel editingEvent, float touchX, float touchY) {
+    private boolean isBottomScalerUnderTouch(Event editingEvent, float touchX, float touchY) {
         RectF rectF = getV().getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
         PointF topDragHandlerPoint = getBottomScallerPoint(rectF);
         return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
@@ -175,9 +266,9 @@ public class EventHelper {
     }
 
 
-    private EventModel createEvent(float touchY) {
+    private Event createEvent(float touchY) {
         long timeStart = getV().getTimeByOffsetY(touchY);
-        return new EventModel(timeStart, DEFAULT_EVENT_TIME_TAKEN, STATUS_EDITING);
+        return new Event(timeStart, DEFAULT_EVENT_TIME_TAKEN, STATUS_EDITING);
     }
 
     public boolean onTouchEvent(MotionEvent motionEvent) {
@@ -208,7 +299,7 @@ public class EventHelper {
     }
 
     private boolean checkEditEvent(float touchX, float touchY) {
-        EventModel eventEditing = getEventEditing();
+        Event eventEditing = getEventEditing();
         if (eventEditing != null) {
             long timeAdjust;
             if (eventEditing.status == STATUS_EDITING) {
@@ -221,6 +312,9 @@ public class EventHelper {
                 timeAdjust = getV().getTimeByOffsetY(touchY);
                 eventEditing.scaleBottomTo(timeAdjust);
             }
+
+//            eventNode = buildEventTree();
+
             invalidate();
             if (eventAdjustListener != null) {
                 eventAdjustListener.onEventAdjusting(timeAdjust);
@@ -277,9 +371,9 @@ public class EventHelper {
         }
     }
 
-    private EventModel getEventEditing() {
-        for (int i = 0; i < eventModels.size(); i++) {
-            EventModel eventModel = eventModels.get(i);
+    private Event getEventEditing() {
+        for (int i = 0; i < events.size(); i++) {
+            Event eventModel = events.get(i);
             if (eventModel.status != STATUS_NORMAL) {
                 return eventModel;
             }
@@ -288,21 +382,31 @@ public class EventHelper {
     }
 
     public void draw(Canvas canvas) {
-        for (int i = 0; i < eventModels.size(); i++) {
-            drawEvent(i, eventModels.get(i), canvas);
+        EventNode eventNode = buildEventTree();
+        if (eventNode.childNodes.size() == 0) {
+            return;
         }
+        drawEvent(eventNode.childNodes, canvas);
     }
 
     private void resetEventStatus() {
-        for (int i = 0; i < eventModels.size(); i++) {
-            eventModels.get(i).changeToNormal();
+        for (int i = 0; i < events.size(); i++) {
+            events.get(i).changeToNormal();
         }
     }
 
-    private void drawEvent(int index, EventModel eventModel, Canvas canvas) {
-        RectF rectF = getV().getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
-        if (eventModel.status != STATUS_NORMAL) {
-            drawEventOnEdit(canvas, eventModel, rectF);
+    private void drawEvent(List<EventNode> nodes, Canvas canvas) {
+        for (int i = 0; i < nodes.size(); i++) {
+            drawEvent(nodes.get(i), canvas);
+        }
+    }
+
+    private void drawEvent(EventNode node, Canvas canvas) {
+        RectF rectF = getV().getRectOnTimeLine(node.event.timeStart, node.event.timeTaken);
+        rectF.left += node.level * 10;
+        Log.d("drawEvent", rectF.toString());
+        if (node.event.status != STATUS_NORMAL) {
+            drawEventOnEdit(canvas, node.event, rectF);
         } else {
             drawEventOnNormal(canvas, rectF);
         }
@@ -313,7 +417,7 @@ public class EventHelper {
         canvas.drawRect(rectF.left, rectF.top, rectF.left + ViewUtil.dpToPx(3), rectF.bottom, eventEditP);
     }
 
-    private void drawEventOnEdit(Canvas canvas, EventModel eventModel, RectF rectF) {
+    private void drawEventOnEdit(Canvas canvas, Event eventModel, RectF rectF) {
         canvas.drawRect(rectF, eventEditP);
         PointF topDragHandlerPoint = getTopScallerPoint(rectF);
         canvas.drawCircle(topDragHandlerPoint.x, topDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
@@ -352,7 +456,7 @@ public class EventHelper {
         if (scrollAnimator != null) {
             scrollAnimator.cancel();
         }
-        if(timeLineEventViewWR != null) {
+        if (timeLineEventViewWR != null) {
             timeLineEventViewWR.clear();
         }
     }

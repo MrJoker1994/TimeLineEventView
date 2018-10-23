@@ -1,6 +1,6 @@
 package io.git.zjoker.timelineeventview.ui.event.model;
 
-public class EventModel {
+public class Event {
     public static final int STATUS_NORMAL = 0;
     public static final int STATUS_EDITING = 1;
     public static final int STATUS_SCALING_TOP = 2;
@@ -11,13 +11,12 @@ public class EventModel {
     public long timeTaken;
     public int status = STATUS_NORMAL;
 
-
-    public EventModel(long timeStart, long timeTaken) {
+    public Event(long timeStart, long timeTaken) {
         this.timeStart = timeStart;
         this.timeTaken = timeTaken;
     }
 
-    public EventModel(long timeStart, long timeTaken, int status) {
+    public Event(long timeStart, long timeTaken, int status) {
         this.timeStart = timeStart;
         this.timeTaken = timeTaken;
         this.status = status;
