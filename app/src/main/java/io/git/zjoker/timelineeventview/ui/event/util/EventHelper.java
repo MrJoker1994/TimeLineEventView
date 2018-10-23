@@ -23,19 +23,23 @@ import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_N
 import static io.git.zjoker.timelineeventview.ui.event.model.EventModel.STATUS_SCALING_TOP;
 
 public class EventHelper {
-    public static final int WHAT_SCROLL = 1;
     private List<EventModel> eventModels;
     private WeakReference<TimeLineEventView> timeLineEventViewWR;
     private Paint eventSolidP;
     private Paint eventEditP;
     private Paint eventDragHandlerP;
     private GestureDetector gestureDetector;
-    public static final long DEFAULT_EVENT_TIME_TAKEN = 30 * 60;
+    public static final long DEFAULT_EVENT_TIME_TAKEN = 50 * 60;
 
     private int editingPostion = -1;
     private float dragHandlerRadius;
     private EventAdjustListener eventAdjustListener;
     private boolean hasEventUnderTouch;
+
+    private float touchMoveDistance;
+    private float lastTouchY;
+
+    private ValueAnimator scrollAnimator;
 
     public EventHelper() {
         this.eventModels = new ArrayList<>();
@@ -67,37 +71,39 @@ public class EventHelper {
             @Override
             public void onLongPress(MotionEvent e) {
                 super.onLongPress(e);
-                EventModel eventUnderTouch =  getEventUnderTouch(e.getX(), e.getY() + getV().getScrollY());
-                EventModel eventEditing = getEventEditing();
-                if(eventEditing != null && eventUnderTouch != eventEditing) {//如果现在长按的不是那个正在编辑的Event，没有任何相应
-                    return;
+                float touchX = e.getX();
+                float touchY = getYWithScroll(e.getY());
+
+                if (getEventEditing() == null) {
+                    EventModel eventUnderTouch = getEventUnderTouch(touchX, touchY);
+                    if (eventUnderTouch == null) {
+                        eventUnderTouch = createEvent(e.getY());
+                        eventUnderTouch.changeToEdit();
+                        eventModels.add(eventUnderTouch);
+                    } else {
+                        eventUnderTouch.changeToEdit();
+                    }
+                    hasEventUnderTouch = true;
+                    if (eventAdjustListener != null) {
+                        eventAdjustListener.onEventAdjusting(eventUnderTouch.timeStart);
+                    }
+                    invalidate();
                 }
-                if (eventUnderTouch!= null) {
-                    eventUnderTouch.changeToEdit();
-                } else {
-                    eventUnderTouch = createEvent(e.getY());
-                    eventModels.add(eventUnderTouch);
-                }
-                hasEventUnderTouch = true;
-                if (eventAdjustListener != null) {
-                    eventAdjustListener.onEventAdjusting(eventUnderTouch.timeStart);
-                }
-                invalidate();
             }
 
             @Override
             public boolean onDown(MotionEvent e) {
-                float touchY = e.getY() + getV().getScrollY();
-                EventModel eventUnderTouch = getEventUnderTouch(e.getX(), touchY);
+                float touchX = e.getX();
+                float touchY = getYWithScroll(e.getY());
                 EventModel eventEditing = getEventEditing();
                 if (eventEditing != null) {
-                    if (isUnderTopScaler(eventEditing, e.getX(), touchY)) {
+                    if (isTopScalerUnderTouch(eventEditing, touchX, touchY)) {
                         eventEditing.changeToScaleTop();
                         hasEventUnderTouch = true;
-                    } else if (isUnderBottomScaler(eventEditing, e.getX(), touchY)) {
+                    } else if (isBottomScalerUnderTouch(eventEditing, touchX, touchY)) {
                         eventEditing.changeToScaleBottom();
                         hasEventUnderTouch = true;
-                    } else if (eventUnderTouch == eventEditing) {
+                    } else if (isEventUnderTouch(eventEditing, touchX, touchY)) {
                         eventEditing.changeToEdit();
                         hasEventUnderTouch = true;
                     } else {
@@ -124,6 +130,15 @@ public class EventHelper {
         });
     }
 
+    private float getYWithScroll(float touchY) {
+        return touchY + getV().getScrollY();
+    }
+
+    private boolean isEventUnderTouch(EventModel eventModel, float touchX, float touchY) {
+        RectF rectF = getV().getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
+        return rectF.contains(touchX, touchY);
+    }
+
     private void invalidate() {
         getV().invalidate();
     }
@@ -131,29 +146,28 @@ public class EventHelper {
     private EventModel getEventUnderTouch(float touchX, float touchY) {
         for (int i = 0; i < eventModels.size(); i++) {
             EventModel eventModel = eventModels.get(i);
-            RectF rectF = getV().getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
-            if (rectF.contains(touchX, touchY)) {
+            if (isEventUnderTouch(eventModel, touchX, touchY)) {
                 return eventModel;
             }
         }
         return null;
     }
 
-    private boolean isUnderTopScaler(EventModel editingEvent, float touchX, float touchY) {
+    private boolean isTopScalerUnderTouch(EventModel editingEvent, float touchX, float touchY) {
         RectF rectF = getV().getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
 
-        PointF topDragHandlerPoint = getTopDragHandlerPoint(rectF);
+        PointF topDragHandlerPoint = getTopScallerPoint(rectF);
         return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
     }
 
-    private boolean isUnderBottomScaler(EventModel editingEvent, float touchX, float touchY) {
+    private boolean isBottomScalerUnderTouch(EventModel editingEvent, float touchX, float touchY) {
         RectF rectF = getV().getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
-        PointF topDragHandlerPoint = getBottomDragHandlerPoint(rectF);
+        PointF topDragHandlerPoint = getBottomScallerPoint(rectF);
         return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
     }
 
     private boolean isInRect(RectF rectF, float x, float y) {
-        return rectF.contains(x, y + getV().getScrollY());
+        return rectF.contains(x, getYWithScroll(y));
     }
 
     private RectF getScalerRectF(float x, float y) {
@@ -174,13 +188,13 @@ public class EventHelper {
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                stopAnimator();
+                stopScroll();
                 if (hasEventUnderTouch && eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustEnd();
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
-                distance = motionEvent.getY() - lastTouchY;
+                touchMoveDistance = motionEvent.getY() - lastTouchY;
                 lastTouchY = motionEvent.getY();
                 if (hasEventUnderTouch) {
                     if (!checkScroll(lastTouchY)) {
@@ -192,9 +206,6 @@ public class EventHelper {
         }
         return hasEventUnderTouch;
     }
-
-    private float distance;
-    private float lastTouchY;
 
     private boolean checkEditEvent(float touchX, float touchY) {
         EventModel eventEditing = getEventEditing();
@@ -221,20 +232,18 @@ public class EventHelper {
 
     private boolean checkScroll(float touchY) {
         int adjustSpace = getV().getHeight() / 8;
-        if (touchY < adjustSpace && distance <= 0 && getV().canScroll(false)) {
-            buildAnimator(false);
-        } else if (touchY > getV().getHeight() - adjustSpace && distance >= 0 && getV().canScroll(true)) {
-            buildAnimator(true);
+        if (touchY < adjustSpace && touchMoveDistance <= 0 && getV().canScroll(false)) {
+            startScroll(false);
+        } else if (touchY > getV().getHeight() - adjustSpace && touchMoveDistance >= 0 && getV().canScroll(true)) {
+            startScroll(true);
             return true;
         } else {
-            stopAnimator();
+            stopScroll();
         }
         return false;
     }
 
-    private ValueAnimator scrollAnimator;
-
-    private void buildAnimator(boolean isScrollUp) {
+    private void startScroll(boolean isScrollUp) {
         if (scrollAnimator != null && scrollAnimator.isRunning()) {
             return;
         }
@@ -262,7 +271,7 @@ public class EventHelper {
         scrollAnimator.start();
     }
 
-    private void stopAnimator() {
+    private void stopScroll() {
         if (scrollAnimator != null) {
             scrollAnimator.cancel();
         }
@@ -293,33 +302,34 @@ public class EventHelper {
     private void drawEvent(int index, EventModel eventModel, Canvas canvas) {
         RectF rectF = getV().getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
         if (eventModel.status != STATUS_NORMAL) {
-            drawEdit(canvas, eventModel, rectF);
+            drawEventOnEdit(canvas, eventModel, rectF);
         } else {
-            drawNormal(canvas, rectF);
+            drawEventOnNormal(canvas, rectF);
         }
     }
 
-    private void drawNormal(Canvas canvas, RectF rectF) {
+    private void drawEventOnNormal(Canvas canvas, RectF rectF) {
         canvas.drawRect(rectF, eventSolidP);
+        canvas.drawRect(rectF.left, rectF.top, rectF.left + ViewUtil.dpToPx(3), rectF.bottom, eventEditP);
     }
 
-    private void drawEdit(Canvas canvas, EventModel eventModel, RectF rectF) {
+    private void drawEventOnEdit(Canvas canvas, EventModel eventModel, RectF rectF) {
         canvas.drawRect(rectF, eventEditP);
-        PointF topDragHandlerPoint = getTopDragHandlerPoint(rectF);
+        PointF topDragHandlerPoint = getTopScallerPoint(rectF);
         canvas.drawCircle(topDragHandlerPoint.x, topDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
 
-        PointF bottomDragHandlerPoint = getBottomDragHandlerPoint(rectF);
+        PointF bottomDragHandlerPoint = getBottomScallerPoint(rectF);
         canvas.drawCircle(bottomDragHandlerPoint.x, bottomDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
     }
 
-    private PointF getTopDragHandlerPoint(RectF eventRectF) {
+    private PointF getTopScallerPoint(RectF eventRectF) {
         float size = 2 * dragHandlerRadius;
         float topXOffset = eventRectF.right - size;
         float topYOffset = eventRectF.top;
         return new PointF(topXOffset, topYOffset);
     }
 
-    private PointF getBottomDragHandlerPoint(RectF eventRectF) {
+    private PointF getBottomScallerPoint(RectF eventRectF) {
         float size = 2 * dragHandlerRadius;
         float bottomXOffset = eventRectF.left + size;
         float bottomYOffset = eventRectF.bottom;
@@ -336,5 +346,14 @@ public class EventHelper {
         void onEventAdjustEnd();
 
         void onEventAdjustWithScroll(int scrollTo);
+    }
+
+    public void dettach() {
+        if (scrollAnimator != null) {
+            scrollAnimator.cancel();
+        }
+        if(timeLineEventViewWR != null) {
+            timeLineEventViewWR.clear();
+        }
     }
 }
