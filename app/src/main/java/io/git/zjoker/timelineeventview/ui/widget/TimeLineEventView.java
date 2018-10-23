@@ -14,7 +14,7 @@ import android.widget.ScrollView;
 import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.util.TimeLineHelper;
 
-public class TimeLineEventView extends ScrollView {
+public class TimeLineEventView extends ScrollView implements EventHelper.EventAdjustListener{
     private TimeLineHelper timeLineHelper;
     private EventHelper eventHelper;
     private SpaceView spaceView;
@@ -46,7 +46,7 @@ public class TimeLineEventView extends ScrollView {
         eventHelper = new EventHelper();
         eventHelper.attach(this);
 
-        eventHelper.setEventAdjustListener(timeLineHelper);
+        eventHelper.setEventAdjustListener(this);
     }
 
     public RectF getRectOnTimeLine(long timeStampStart, long timeTaken) {
@@ -88,6 +88,21 @@ public class TimeLineEventView extends ScrollView {
         super.dispatchDraw(canvas);
         timeLineHelper.draw(canvas);
         eventHelper.draw(canvas);
+    }
+
+    @Override
+    public void onEventAdjusting(long timeAdjust) {
+        timeLineHelper.onEventAdjusting(timeAdjust);
+    }
+
+    @Override
+    public void onEventAdjustEnd() {
+        timeLineHelper.onEventAdjustEnd();
+    }
+
+    @Override
+    public void onEventAdjustWithScroll(int scrollTo) {
+        scrollTo(0,scrollTo);
     }
 
     private static class SpaceView extends View {

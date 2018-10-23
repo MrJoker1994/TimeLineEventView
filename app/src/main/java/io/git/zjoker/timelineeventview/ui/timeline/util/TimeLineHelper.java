@@ -17,7 +17,7 @@ import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.model.TimeLineModel;
 import io.git.zjoker.timelineeventview.util.ViewUtil;
 
-public class TimeLineHelper implements EventHelper.EventAdjustListener {
+public class TimeLineHelper {
     private WeakReference<ScrollView> timeLineRVWR;
     public static final String TIME_TEXT_FORMAT_HOUR = "%s:00";
     private static float UNIT_HEIGHT = ViewUtil.dpToPx(80);
@@ -195,13 +195,11 @@ public class TimeLineHelper implements EventHelper.EventAdjustListener {
         return (long) (radio * getTotalSecond());
     }
 
-    @Override
     public void onEventAdjusting(long timeAdjust) {
         this.eventAdjusting = true;
         this.timeAdjust = timeAdjust;
     }
 
-    @Override
     public void onEventAdjustEnd() {
         this.eventAdjusting = false;
     }

@@ -7,9 +7,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
-import android.os.Handler;
-import android.os.Message;
-import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 
@@ -30,7 +27,7 @@ public class EventHelper {
     private List<EventModel> eventModels;
     private WeakReference<TimeLineEventView> timeLineEventViewWR;
     private Paint eventSolidP;
-    private Paint eventEditStrokeP;
+    private Paint eventEditP;
     private Paint eventDragHandlerP;
     private GestureDetector gestureDetector;
     public static final long DEFAULT_EVENT_TIME_TAKEN = 30 * 60;
@@ -46,10 +43,9 @@ public class EventHelper {
         eventSolidP.setStyle(Paint.Style.FILL);
         eventSolidP.setColor(Color.parseColor("#AAAAAAFF"));
 
-        eventEditStrokeP = new Paint();
-        eventEditStrokeP.setStyle(Paint.Style.STROKE);
-        eventEditStrokeP.setStrokeWidth(ViewUtil.dpToPx(2));
-        eventEditStrokeP.setColor(Color.parseColor("#FFAAAAFF"));
+        eventEditP = new Paint();
+        eventEditP.setStyle(Paint.Style.FILL);
+        eventEditP.setColor(Color.parseColor("#FFAAAAFF"));
 
         eventDragHandlerP = new Paint();
         eventDragHandlerP.setStyle(Paint.Style.STROKE);
@@ -71,29 +67,34 @@ public class EventHelper {
             @Override
             public void onLongPress(MotionEvent e) {
                 super.onLongPress(e);
-                EventModel eventWillEdit;
-                if ((eventWillEdit = getEventUnderTouch(e.getX(), e.getY() + getV().getScrollY())) != null) {
-                    eventWillEdit.changeToEdit();
+                EventModel eventUnderTouch =  getEventUnderTouch(e.getX(), e.getY() + getV().getScrollY());
+                EventModel eventEditing = getEventEditing();
+                if(eventEditing != null && eventUnderTouch != eventEditing) {//如果现在长按的不是那个正在编辑的Event，没有任何相应
+                    return;
+                }
+                if (eventUnderTouch!= null) {
+                    eventUnderTouch.changeToEdit();
                 } else {
-                    eventWillEdit = createEvent(e.getY());
-                    eventModels.add(eventWillEdit);
+                    eventUnderTouch = createEvent(e.getY());
+                    eventModels.add(eventUnderTouch);
                 }
                 hasEventUnderTouch = true;
                 if (eventAdjustListener != null) {
-                    eventAdjustListener.onEventAdjusting(eventWillEdit.timeStart);
+                    eventAdjustListener.onEventAdjusting(eventUnderTouch.timeStart);
                 }
                 invalidate();
             }
 
             @Override
             public boolean onDown(MotionEvent e) {
-                EventModel eventUnderTouch = getEventUnderTouch(e.getX(), e.getY() + getV().getScrollY());
-                EventModel eventEditing = getEditingEvent();
+                float touchY = e.getY() + getV().getScrollY();
+                EventModel eventUnderTouch = getEventUnderTouch(e.getX(), touchY);
+                EventModel eventEditing = getEventEditing();
                 if (eventEditing != null) {
-                    if (isUnderTopScaler(eventEditing, e.getX(), e.getY() + getV().getScrollY())) {
+                    if (isUnderTopScaler(eventEditing, e.getX(), touchY)) {
                         eventEditing.changeToScaleTop();
                         hasEventUnderTouch = true;
-                    } else if (isUnderBottomScaler(eventEditing, e.getX(), e.getY() + getV().getScrollY())) {
+                    } else if (isUnderBottomScaler(eventEditing, e.getX(), touchY)) {
                         eventEditing.changeToScaleBottom();
                         hasEventUnderTouch = true;
                     } else if (eventUnderTouch == eventEditing) {
@@ -110,7 +111,7 @@ public class EventHelper {
 
             @Override
             public boolean onSingleTapUp(MotionEvent e) {
-                boolean hasEditingEvent = getEditingEvent() != null;
+                boolean hasEditingEvent = getEventEditing() != null;
                 if (hasEditingEvent && !hasEventUnderTouch) {
                     resetEventStatus();
                     if (eventAdjustListener != null) {
@@ -196,18 +197,18 @@ public class EventHelper {
     private float lastTouchY;
 
     private boolean checkEditEvent(float touchX, float touchY) {
-        EventModel event = getEditingEvent();
-        if (event != null) {
+        EventModel eventEditing = getEventEditing();
+        if (eventEditing != null) {
             long timeAdjust;
-            if (event.status == STATUS_EDITING) {
+            if (eventEditing.status == STATUS_EDITING) {
                 timeAdjust = getV().getTimeByOffsetY(touchY);
-                event.moveTo(timeAdjust);
-            } else if (event.status == STATUS_SCALING_TOP) {
+                eventEditing.moveTo(timeAdjust);
+            } else if (eventEditing.status == STATUS_SCALING_TOP) {
                 timeAdjust = getV().getTimeByOffsetY(touchY);
-                event.scaleTopTo(timeAdjust);
+                eventEditing.scaleTopTo(timeAdjust);
             } else {
                 timeAdjust = getV().getTimeByOffsetY(touchY);
-                event.scaleBottomTo(timeAdjust);
+                eventEditing.scaleBottomTo(timeAdjust);
             }
             invalidate();
             if (eventAdjustListener != null) {
@@ -252,7 +253,9 @@ public class EventHelper {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 int scrollTo = (int) animation.getAnimatedValue();
-                getV().scrollTo(0, scrollTo);
+                if (eventAdjustListener != null) {
+                    eventAdjustListener.onEventAdjustWithScroll(scrollTo);
+                }
                 checkEditEvent(0, lastTouchY);
             }
         });
@@ -265,7 +268,7 @@ public class EventHelper {
         }
     }
 
-    private EventModel getEditingEvent() {
+    private EventModel getEventEditing() {
         for (int i = 0; i < eventModels.size(); i++) {
             EventModel eventModel = eventModels.get(i);
             if (eventModel.status != STATUS_NORMAL) {
@@ -289,14 +292,19 @@ public class EventHelper {
 
     private void drawEvent(int index, EventModel eventModel, Canvas canvas) {
         RectF rectF = getV().getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
-        canvas.drawRect(rectF, eventSolidP);
         if (eventModel.status != STATUS_NORMAL) {
             drawEdit(canvas, eventModel, rectF);
+        } else {
+            drawNormal(canvas, rectF);
         }
     }
 
+    private void drawNormal(Canvas canvas, RectF rectF) {
+        canvas.drawRect(rectF, eventSolidP);
+    }
+
     private void drawEdit(Canvas canvas, EventModel eventModel, RectF rectF) {
-        canvas.drawRect(rectF, eventEditStrokeP);
+        canvas.drawRect(rectF, eventEditP);
         PointF topDragHandlerPoint = getTopDragHandlerPoint(rectF);
         canvas.drawCircle(topDragHandlerPoint.x, topDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
 
@@ -326,5 +334,7 @@ public class EventHelper {
         void onEventAdjusting(long timeAdjust);
 
         void onEventAdjustEnd();
+
+        void onEventAdjustWithScroll(int scrollTo);
     }
 }
