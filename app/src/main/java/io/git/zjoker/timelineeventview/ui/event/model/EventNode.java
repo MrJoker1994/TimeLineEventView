@@ -5,11 +5,16 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class EventNode {
-    public EventNode parentNode;
     public Event event;
     public int level;
     public List<EventNode> childNodes;
     public List<EventNode> sameNodes;
+
+    public EventNode(Event event, int level) {
+        this();
+        this.event = event;
+        this.level = level;
+    }
 
     public EventNode() {
         childNodes = new LinkedList<>();
@@ -17,16 +22,13 @@ public class EventNode {
     }
 
     public void appendChildNode(EventNode eventNode) {
+        eventNode.level = level + 1;
         childNodes.add(eventNode);
-        eventNode.parentNode = this;
     }
 
     public void appendSameNode(EventNode eventNode) {
+        eventNode.level = level;
         sameNodes.add(eventNode);
-    }
-
-    public int getDirectChildCount() {
-        return childNodes.size();
     }
 
     @Override

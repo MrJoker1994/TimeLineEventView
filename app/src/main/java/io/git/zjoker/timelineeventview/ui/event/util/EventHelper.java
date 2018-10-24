@@ -53,7 +53,7 @@ public class EventHelper {
         this.events = new ArrayList<>();
         eventSolidP = new Paint();
         eventSolidP.setStyle(Paint.Style.FILL);
-        eventSolidP.setColor(Color.parseColor("#AAAAAAFF"));
+        eventSolidP.setColor(Color.parseColor("#AA9999AA"));
 
         eventEditP = new Paint();
         eventEditP.setStyle(Paint.Style.FILL);
@@ -84,17 +84,41 @@ public class EventHelper {
         if (tmpEvent.size() == 0) {
 
         } else if (tmpEvent.size() == 1) {
-            EventNode childNode = new EventNode();
-            childNode.event = tmpEvent.get(0);
-            childNode.level = rootNode.level + 1;
-            rootNode.appendChildNode(childNode);
+            rootNode.appendChildNode(new EventNode(tmpEvent.get(0), 1));
         } else {
-            EventNode childNode = new EventNode();
-            childNode.event = tmpEvent.get(0);
-            childNode.level = rootNode.level + 1;
-            rootNode.appendChildNode(childNode);
-            tmpEvent.remove(0);
-            buildEventTree(childNode, tmpEvent.get(0), tmpEvent);
+            List<EventNode> nodes = new ArrayList<>(tmpEvent.size());
+            for (int i = 0; i < tmpEvent.size(); i++) {
+                nodes.add(new EventNode(tmpEvent.get(i), 1));
+            }
+
+            for (int i = 0; i < nodes.size(); i++) {
+                EventNode node1 = nodes.get(i);//正在找寻parent的node
+                RectF rect1 = getV().getRectOnTimeLine(node1.event.timeStart, node1.event.timeTaken);
+                int maxLevel = 0;
+                EventNode parentNode = null;
+                boolean hasSameNode = false;
+                for (int j = 0; j < i; j++) {
+                    EventNode node2 = nodes.get(j);//前面已经构建好的node
+                    RectF rect2 = getV().getRectOnTimeLine(node2.event.timeStart, node2.event.timeTaken);
+                    if (rect1.equals(rect2)) {
+                        hasSameNode = true;
+                        node2.appendSameNode(node1);
+                        break;
+                    } else if (RectF.intersects(rect1, rect2)) {
+                        if (node2.level > maxLevel) {
+                            maxLevel = node2.level;
+                            parentNode = node2;
+                        }
+                    }
+                }
+                if (parentNode != null) {
+                    parentNode.appendChildNode(node1);
+                    Log.d("ParentNode", parentNode.childNodes.toString());
+                } else if (!hasSameNode) {
+                    rootNode.appendChildNode(node1);
+                }
+
+            }
         }
         Log.d("EventNode", rootNode.toString());
         return rootNode;
@@ -103,54 +127,37 @@ public class EventHelper {
     private void buildEventTree(EventNode node, Event event, List<Event> events) {
         Iterator<Event> iterator = events.iterator();
         RectF parentRect = getV().getRectOnTimeLine(event.timeStart, event.timeTaken);
+
         while (iterator.hasNext()) {
             Event childEvent = iterator.next();
             RectF childRect = getV().getRectOnTimeLine(childEvent.timeStart, childEvent.timeTaken);
-            if (parentRect.equals(childRect)) {
+            if (parentRect.equals(childRect)) {//一毛一样
                 iterator.remove();
                 EventNode childNode = new EventNode();
                 childNode.event = childEvent;
                 childNode.level = node.level;
                 node.appendSameNode(childNode);
-            } else if (!RectF.intersects(parentRect, childRect)) {
+            } else if (RectF.intersects(parentRect, childRect)) {//有重叠
                 iterator.remove();
                 EventNode childNode = new EventNode();
                 childNode.event = childEvent;
                 childNode.level = node.level + 1;
                 node.appendChildNode(childNode);
                 buildEventTree(childNode, childEvent, new LinkedList<>(events));
-            } else {
-                EventNode parentNode = node.parentNode;
-                if(parentNode != null) {
-                    if(parentNode.event == null) {
-                        iterator.remove();
-                        EventNode childNode = new EventNode();
-                        childNode.event = childEvent;
-                        childNode.level = node.level;
-                        node.parentNode.appendChildNode(childNode);
-                        buildEventTree(childNode, childEvent, new LinkedList<>(events));
-                    } else if(RectF.intersects(getV().getRectOnTimeLine(parentNode.event.timeStart, parentNode.event.timeTaken), childRect)) {
-                        iterator.remove();
-                        EventNode childNode = new EventNode();
-                        childNode.event = childEvent;
-                        childNode.level = node.level;
-                        node.parentNode.appendChildNode(childNode);
-                        buildEventTree(childNode, childEvent, new LinkedList<>(events));
-                    }
-                }
-            }
-        }
-
-        if (events.size() > 0) {
-            iterator = events.iterator();
-            while (iterator.hasNext()) {
-                Event childEvent = iterator.next();
-                iterator.remove();
-                EventNode childNode = new EventNode();
-                childNode.event = childEvent;
-                childNode.level = node.level;
-                node.parentNode.appendChildNode(childNode);
-                buildEventTree(childNode, childEvent, new LinkedList<>(events));
+            } else {//没有重叠 往上追述找到parent
+//                    EventNode curParent = node.parentNode;
+//                    EventNode childNode = new EventNode();
+//                    childNode.event = childEvent;
+//                    while (curParent != null) {
+//                        if (curParent.event == null || RectF.intersects(getV().getRectOnTimeLine(curParent.event.timeStart, curParent.event.timeTaken), childRect)) {
+//                            iterator.remove();
+//                            childNode.level = curParent.level + 1;
+//                            curParent.appendChildNode(childNode);
+//                            break;
+//                        }
+//                        curParent = curParent.parentNode;
+//                    }
+//                    buildEventTree(childNode, childEvent, new LinkedList<>(events));
             }
         }
     }
@@ -386,7 +393,7 @@ public class EventHelper {
         if (eventNode.childNodes.size() == 0) {
             return;
         }
-        drawEvent(eventNode.childNodes, canvas);
+        drawEvents(eventNode.childNodes, canvas);
     }
 
     private void resetEventStatus() {
@@ -395,20 +402,39 @@ public class EventHelper {
         }
     }
 
-    private void drawEvent(List<EventNode> nodes, Canvas canvas) {
+    private void drawEvents(List<EventNode> nodes, Canvas canvas) {
         for (int i = 0; i < nodes.size(); i++) {
-            drawEvent(nodes.get(i), canvas);
+            EventNode eventNode = nodes.get(i);
+            drawSingleEvent(eventNode, canvas);
+            drawEvents(eventNode.childNodes, canvas);
         }
     }
 
-    private void drawEvent(EventNode node, Canvas canvas) {
+    private void drawSingleEvent(EventNode node, Canvas canvas) {
         RectF rectF = getV().getRectOnTimeLine(node.event.timeStart, node.event.timeTaken);
-        rectF.left += node.level * 10;
-        Log.d("drawEvent", rectF.toString());
         if (node.event.status != STATUS_NORMAL) {
             drawEventOnEdit(canvas, node.event, rectF);
+            if (!node.sameNodes.isEmpty()) {
+                float rectWidth = rectF.width() / (node.sameNodes.size());
+                RectF sameNodeRect = new RectF(rectF.left, rectF.top, rectWidth, rectF.top);
+                for (int i = 0; i < node.sameNodes.size(); i++) {
+                    sameNodeRect.offsetTo(i * rectWidth, rectF.top);
+                    drawEventOnNormal(canvas, sameNodeRect);
+                }
+            }
         } else {
-            drawEventOnNormal(canvas, rectF);
+            rectF.left += (node.level - 1) * 10;
+            if (node.sameNodes.isEmpty()) {
+                drawEventOnNormal(canvas, rectF);
+            } else {
+                float rectWidth = rectF.width() / (node.sameNodes.size() + 1);
+                RectF sameNodeRect = new RectF(rectF.left, rectF.top, rectF.left + rectWidth, rectF.bottom);
+                drawEventOnNormal(canvas, sameNodeRect);
+                for (int i = 0; i < node.sameNodes.size(); i++) {
+                    sameNodeRect.offset(rectWidth, 0);
+                    drawEventOnNormal(canvas, sameNodeRect);
+                }
+            }
         }
     }
 
