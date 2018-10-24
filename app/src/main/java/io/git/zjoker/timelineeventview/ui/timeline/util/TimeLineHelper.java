@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
-import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.model.TimeLineModel;
 import io.git.zjoker.timelineeventview.util.ViewUtil;
 
@@ -136,7 +135,7 @@ public class TimeLineHelper {
 
     private String getAdjustingUnit(long timeAdjust) {
         Calendar instance = Calendar.getInstance();
-        instance.setTimeInMillis(timeAdjust * 1000);
+        instance.setTimeInMillis(timeAdjust);
         int minute = instance.get(Calendar.MINUTE);
         if (15 < minute && minute < 30) {
             minute = 15;
@@ -164,14 +163,14 @@ public class TimeLineHelper {
         return getRV().getPaddingTop() + topSpace;
     }
 
-    private int getTotalSecond() {
-        return (TIME_LINE_TOTAL_COUNT - 1) * 60 * 60;
+    private int getTotalMilliSecond() {
+        return (TIME_LINE_TOTAL_COUNT - 1) * 60 * 60 * 1000;
     }
 
     private void drawCurTimeLine(Canvas canvas) {
-        float totalSecond = getTotalSecond() * 1f;
+        float totalSecond = getTotalMilliSecond() * 1f;
         Calendar instance = Calendar.getInstance();
-        long curSecond = instance.get(Calendar.HOUR_OF_DAY) * 60 * 60 + instance.get(Calendar.MINUTE) * 60 + instance.get(Calendar.SECOND);
+        long curSecond = instance.get(Calendar.HOUR_OF_DAY) * 60 * 60 * 1000 + instance.get(Calendar.MINUTE) * 60 * 1000 + instance.get(Calendar.SECOND) * 1000 + instance.get(Calendar.MILLISECOND);
 
         float yOffset = curSecond / totalSecond * getAllLineHeight() + getTopOffset();
         canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
@@ -187,12 +186,17 @@ public class TimeLineHelper {
     }
 
     private float getOffsetYByTime(long timeStamp) {
-        return timeStamp * 1f / getTotalSecond() * getAllLineHeight() + getTopOffset();
+        return timeStamp * 1f / getTotalMilliSecond() * getAllLineHeight() + getTopOffset();
     }
 
     public long getTimeByOffsetY(float offSetY) {
         float radio = (offSetY - getTopOffset()) / getAllLineHeight();
-        return (long) (radio * getTotalSecond());
+        return (long) (radio * getTotalMilliSecond());
+    }
+
+    public long getTimeByDistance(float distance) {
+        float radio = distance / getAllLineHeight();
+        return (long) (radio * getTotalMilliSecond());
     }
 
     public void onEventAdjusting(long timeAdjust) {

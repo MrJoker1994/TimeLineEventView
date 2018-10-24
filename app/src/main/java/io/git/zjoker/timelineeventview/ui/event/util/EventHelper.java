@@ -36,7 +36,7 @@ public class EventHelper {
     private Paint eventEditP;
     private Paint eventDragHandlerP;
     private GestureDetector gestureDetector;
-    public static final long DEFAULT_EVENT_TIME_TAKEN = 50 * 60;
+    public static final long DEFAULT_EVENT_TIME_TAKEN = 50 * 60 * 1000;
 
     private int editingPostion = -1;
     private float dragHandlerRadius;
@@ -296,7 +296,7 @@ public class EventHelper {
                 lastTouchY = motionEvent.getY();
                 if (hasEventUnderTouch) {
                     if (!checkScroll(lastTouchY)) {
-                        checkEditEvent(motionEvent.getX(), lastTouchY);
+                        checkEditEvent(motionEvent.getX(), lastTouchY, touchMoveDistance);
                     }
                     return true;
                 }
@@ -305,26 +305,22 @@ public class EventHelper {
         return hasEventUnderTouch;
     }
 
-    private boolean checkEditEvent(float touchX, float touchY) {
+    private boolean checkEditEvent(float touchX, float touchY, float moveDistanceY) {
         Event eventEditing = getEventEditing();
-        if (eventEditing != null) {
-            long timeAdjust;
+        if (moveDistanceY != 0 && eventEditing != null) {
+            long timeAdjust = getV().getTimeByDistance(moveDistanceY);
+            Log.d("checkEditEvent", timeAdjust + "--" + moveDistanceY);
             if (eventEditing.status == STATUS_EDITING) {
-                timeAdjust = getV().getTimeByOffsetY(touchY);
-                eventEditing.moveTo(timeAdjust);
+                eventEditing.moveBy(timeAdjust);
             } else if (eventEditing.status == STATUS_SCALING_TOP) {
-                timeAdjust = getV().getTimeByOffsetY(touchY);
-                eventEditing.scaleTopTo(timeAdjust);
+                eventEditing.scaleTopBy(timeAdjust);
             } else {
-                timeAdjust = getV().getTimeByOffsetY(touchY);
-                eventEditing.scaleBottomTo(timeAdjust);
+                eventEditing.scaleBottomBy(timeAdjust);
             }
-
-//            eventNode = buildEventTree();
 
             invalidate();
             if (eventAdjustListener != null) {
-                eventAdjustListener.onEventAdjusting(timeAdjust);
+                eventAdjustListener.onEventAdjusting(getV().getTimeByOffsetY(touchY));
             }
             return true;
         }
@@ -366,7 +362,7 @@ public class EventHelper {
                 if (eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustWithScroll(scrollTo);
                 }
-                checkEditEvent(0, lastTouchY);
+                checkEditEvent(0, lastTouchY, touchMoveDistance);
             }
         });
         scrollAnimator.start();

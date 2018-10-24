@@ -39,17 +39,16 @@ public class Event {
         this.status = STATUS_SCALING_BOTTOM;
     }
 
-    public void moveTo(long newTimeStart) {
-        this.timeStart = newTimeStart;
+    public void moveBy(long timeAdjust) {
+        this.timeStart += timeAdjust;
     }
 
-    public void scaleTopTo(long newTimeStart) {
-        long diff = this.timeStart - newTimeStart ;
-        moveTo(newTimeStart);
-        timeTaken += diff;
+    public void scaleTopBy(long timeAdjust) {
+        moveBy(timeAdjust);
+        scaleBottomBy(-timeAdjust);
     }
 
-    public void scaleBottomTo(long newTimeEnd) {
-        timeTaken = newTimeEnd - timeStart;
+    public void scaleBottomBy(long timeAdjust) {
+        timeTaken += timeAdjust;
     }
 }
