@@ -6,7 +6,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
-import android.graphics.Rect;
 import android.graphics.RectF;
 import android.util.Log;
 import android.view.GestureDetector;
@@ -43,7 +42,8 @@ public class EventHelper {
     private EventAdjustListener eventAdjustListener;
     private boolean hasEventUnderTouch;
 
-    private float touchMoveDistance;
+    private float moveDistanceY;
+    private float moveDistanceYInScroll;//滚动的时候用于判断move距离的，因为滚动的时候如果手指不动需要把move距离置为0
     private float lastTouchY;
 
     private ValueAnimator scrollAnimator;
@@ -286,17 +286,20 @@ public class EventHelper {
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
+                moveDistanceYInScroll = moveDistanceY = 0;
                 stopScroll();
                 if (hasEventUnderTouch && eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustEnd();
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
-                touchMoveDistance = motionEvent.getY() - lastTouchY;
+                moveDistanceYInScroll = moveDistanceY = motionEvent.getY() - lastTouchY;
+
+                Log.d("checkScroll", String.valueOf(moveDistanceY));
                 lastTouchY = motionEvent.getY();
                 if (hasEventUnderTouch) {
                     if (!checkScroll(lastTouchY)) {
-                        checkEditEvent(motionEvent.getX(), lastTouchY, touchMoveDistance);
+                        checkEditEvent(motionEvent.getX(), lastTouchY, moveDistanceY);
                     }
                     return true;
                 }
@@ -320,7 +323,7 @@ public class EventHelper {
 
             invalidate();
             if (eventAdjustListener != null) {
-                eventAdjustListener.onEventAdjusting(getV().getTimeByOffsetY(touchY));
+                eventAdjustListener.onEventAdjusting(eventEditing.timeStart);
             }
             return true;
         }
@@ -329,9 +332,10 @@ public class EventHelper {
 
     private boolean checkScroll(float touchY) {
         int adjustSpace = getV().getHeight() / 8;
-        if (touchY < adjustSpace && touchMoveDistance <= 0 && getV().canScroll(false)) {
+        if (touchY < adjustSpace && moveDistanceYInScroll <= 0 && getV().canScroll(false)) {
             startScroll(false);
-        } else if (touchY > getV().getHeight() - adjustSpace && touchMoveDistance >= 0 && getV().canScroll(true)) {
+            return true;
+        } else if (touchY > getV().getHeight() - adjustSpace && moveDistanceYInScroll >= 0 && getV().canScroll(true)) {
             startScroll(true);
             return true;
         } else {
@@ -340,12 +344,12 @@ public class EventHelper {
         return false;
     }
 
-    private void startScroll(boolean isScrollUp) {
+    private void startScroll(final boolean isScrollUp) {
         if (scrollAnimator != null && scrollAnimator.isRunning()) {
             return;
         }
 
-        int from;
+        final int from;
         int target;
         if (isScrollUp) {
             from = getV().getScrollY();
@@ -354,15 +358,21 @@ public class EventHelper {
             from = getV().getScrollY();
             target = 0;
         }
+        moveDistanceYInScroll = 0;
         scrollAnimator = ObjectAnimator.ofInt(from, target).setDuration(Math.abs(target - from));
         scrollAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            private int lastScrollBy = from;
+
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 int scrollTo = (int) animation.getAnimatedValue();
                 if (eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustWithScroll(scrollTo);
                 }
-                checkEditEvent(0, lastTouchY, touchMoveDistance);
+//                Log.d("onAnimationUpdate", String.valueOf(moveDistanceY));
+                checkEditEvent(0, lastTouchY, scrollTo - lastScrollBy + moveDistanceYInScroll);//滚动距离+滚动时的move距离
+                lastScrollBy = scrollTo;
+                moveDistanceYInScroll = 0;
             }
         });
         scrollAnimator.start();
