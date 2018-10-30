@@ -12,7 +12,7 @@ public class ViewUtil {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, dm);
     }
 
-    public static float spToPx(int sp, Resources resources) {
+    public static float spToPx(int sp) {
         DisplayMetrics dm = App.appContext.getResources().getDisplayMetrics();
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, dm);
     }

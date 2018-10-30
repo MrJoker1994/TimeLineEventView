@@ -7,6 +7,11 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextDirectionHeuristics;
+import android.text.TextPaint;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -34,6 +39,7 @@ public class EventHelper {
     private Paint eventSolidP;
     private Paint eventEditP;
     private Paint eventDragHandlerP;
+    private TextPaint eventContentP;
     private GestureDetector gestureDetector;
     public static final long DEFAULT_EVENT_TIME_TAKEN = 50 * 60 * 1000;
 
@@ -47,7 +53,8 @@ public class EventHelper {
     private float lastTouchY;
 
     private ValueAnimator scrollAnimator;
-    private EventNode eventNode;
+    private EventNode eventEditing;
+    private float eventPadding;
 
     public EventHelper() {
         this.events = new ArrayList<>();
@@ -64,7 +71,15 @@ public class EventHelper {
         eventDragHandlerP.setStrokeWidth(ViewUtil.dpToPx(2));
         eventDragHandlerP.setColor(Color.parseColor("#FFAAAAFF"));
 
+
+        eventContentP = new TextPaint();
+        eventContentP.setColor(Color.WHITE);
+        eventContentP.setTextSize(ViewUtil.spToPx(15));
+        eventContentP.setStyle(Paint.Style.FILL);
+
         dragHandlerRadius = ViewUtil.dpToPx(15);
+
+        eventPadding = ViewUtil.dpToPx(8);
     }
 
     public void setEventAdjustListener(EventAdjustListener eventAdjustListener) {
@@ -73,17 +88,14 @@ public class EventHelper {
 
     private EventNode buildEventTree() {
         List<Event> tmpEvent = new ArrayList<>(events);
-        Collections.sort(tmpEvent, new Comparator<Event>() {
-            @Override
-            public int compare(Event o1, Event o2) {
-                return (int) (o1.timeStart - o2.timeStart);
-            }
-        });
+        Collections.sort(tmpEvent, eventComparator);
 
         EventNode rootNode = new EventNode();
         if (tmpEvent.size() == 0) {
+            return rootNode;
+        }
 
-        } else if (tmpEvent.size() == 1) {
+        if (tmpEvent.size() == 1) {
             rootNode.appendChildNode(new EventNode(tmpEvent.get(0), 1));
         } else {
             List<EventNode> nodes = new ArrayList<>(tmpEvent.size());
@@ -97,15 +109,15 @@ public class EventHelper {
                 int maxLevel = 0;
                 EventNode parentNode = null;
                 boolean hasSameNode = false;
-                for (int j = 0; j < i; j++) {
+                for (int j = 0; j < i; j++) {//和i之前的node挨个做对比，找出自己的所在位置
                     EventNode node2 = nodes.get(j);//前面已经构建好的node
                     RectF rect2 = getV().getRectOnTimeLine(node2.event.timeStart, node2.event.timeTaken);
-                    if (rect1.equals(rect2)) {
+                    if (rect1.equals(rect2)) {//完全重叠
                         hasSameNode = true;
                         node2.appendSameNode(node1);
                         break;
-                    } else if (RectF.intersects(rect1, rect2)) {
-                        if (node2.level > maxLevel) {
+                    } else if (RectF.intersects(rect1, rect2)) {//有重叠
+                        if (node2.level > maxLevel) {//找到深度最大的那个作为父节点
                             maxLevel = node2.level;
                             parentNode = node2;
                         }
@@ -114,7 +126,7 @@ public class EventHelper {
                 if (parentNode != null) {
                     parentNode.appendChildNode(node1);
                     Log.d("ParentNode", parentNode.childNodes.toString());
-                } else if (!hasSameNode) {
+                } else if (!hasSameNode) {//如果没有找到自己的位置，就属于是第一级
                     rootNode.appendChildNode(node1);
                 }
 
@@ -122,44 +134,6 @@ public class EventHelper {
         }
         Log.d("EventNode", rootNode.toString());
         return rootNode;
-    }
-
-    private void buildEventTree(EventNode node, Event event, List<Event> events) {
-        Iterator<Event> iterator = events.iterator();
-        RectF parentRect = getV().getRectOnTimeLine(event.timeStart, event.timeTaken);
-
-        while (iterator.hasNext()) {
-            Event childEvent = iterator.next();
-            RectF childRect = getV().getRectOnTimeLine(childEvent.timeStart, childEvent.timeTaken);
-            if (parentRect.equals(childRect)) {//一毛一样
-                iterator.remove();
-                EventNode childNode = new EventNode();
-                childNode.event = childEvent;
-                childNode.level = node.level;
-                node.appendSameNode(childNode);
-            } else if (RectF.intersects(parentRect, childRect)) {//有重叠
-                iterator.remove();
-                EventNode childNode = new EventNode();
-                childNode.event = childEvent;
-                childNode.level = node.level + 1;
-                node.appendChildNode(childNode);
-                buildEventTree(childNode, childEvent, new LinkedList<>(events));
-            } else {//没有重叠 往上追述找到parent
-//                    EventNode curParent = node.parentNode;
-//                    EventNode childNode = new EventNode();
-//                    childNode.event = childEvent;
-//                    while (curParent != null) {
-//                        if (curParent.event == null || RectF.intersects(getV().getRectOnTimeLine(curParent.event.timeStart, curParent.event.timeTaken), childRect)) {
-//                            iterator.remove();
-//                            childNode.level = curParent.level + 1;
-//                            curParent.appendChildNode(childNode);
-//                            break;
-//                        }
-//                        curParent = curParent.parentNode;
-//                    }
-//                    buildEventTree(childNode, childEvent, new LinkedList<>(events));
-            }
-        }
     }
 
     public void attach(TimeLineEventView timeLineEventView) {
@@ -313,17 +287,27 @@ public class EventHelper {
         if (moveDistanceY != 0 && eventEditing != null) {
             long timeAdjust = getV().getTimeByDistance(moveDistanceY);
             Log.d("checkEditEvent", timeAdjust + "--" + moveDistanceY);
+            long timeAdjustBound;
             if (eventEditing.status == STATUS_EDITING) {
                 eventEditing.moveBy(timeAdjust);
+                timeAdjustBound = eventEditing.timeStart;
             } else if (eventEditing.status == STATUS_SCALING_TOP) {
                 eventEditing.scaleTopBy(timeAdjust);
+                if (DEFAULT_EVENT_TIME_TAKEN > eventEditing.timeTaken) {
+                    eventEditing.scaleTopBy(eventEditing.timeTaken - DEFAULT_EVENT_TIME_TAKEN);
+                }
+                timeAdjustBound = eventEditing.timeStart;
             } else {
                 eventEditing.scaleBottomBy(timeAdjust);
+                if (DEFAULT_EVENT_TIME_TAKEN > eventEditing.timeTaken) {
+                    eventEditing.scaleBottomBy(DEFAULT_EVENT_TIME_TAKEN - eventEditing.timeTaken);
+                }
+                timeAdjustBound = eventEditing.getTimeEnd();
             }
 
             invalidate();
             if (eventAdjustListener != null) {
-                eventAdjustListener.onEventAdjusting(eventEditing.timeStart);
+                eventAdjustListener.onEventAdjusting(timeAdjustBound);
             }
             return true;
         }
@@ -425,37 +409,55 @@ public class EventHelper {
                 RectF sameNodeRect = new RectF(rectF.left, rectF.top, rectWidth, rectF.top);
                 for (int i = 0; i < node.sameNodes.size(); i++) {
                     sameNodeRect.offsetTo(i * rectWidth, rectF.top);
-                    drawEventOnNormal(canvas, sameNodeRect);
+                    drawEventOnNormal(canvas, node.sameNodes.get(0).event, sameNodeRect);
                 }
             }
         } else {
             rectF.left += (node.level - 1) * 10;
             if (node.sameNodes.isEmpty()) {
-                drawEventOnNormal(canvas, rectF);
+                drawEventOnNormal(canvas, node.event, rectF);
             } else {
                 float rectWidth = rectF.width() / (node.sameNodes.size() + 1);
                 RectF sameNodeRect = new RectF(rectF.left, rectF.top, rectF.left + rectWidth, rectF.bottom);
-                drawEventOnNormal(canvas, sameNodeRect);
+                drawEventOnNormal(canvas, node.event, sameNodeRect);
                 for (int i = 0; i < node.sameNodes.size(); i++) {
                     sameNodeRect.offset(rectWidth, 0);
-                    drawEventOnNormal(canvas, sameNodeRect);
+                    drawEventOnNormal(canvas, node.sameNodes.get(0).event, sameNodeRect);
                 }
             }
         }
     }
 
-    private void drawEventOnNormal(Canvas canvas, RectF rectF) {
+    private void drawEventOnNormal(Canvas canvas, Event event, RectF rectF) {
         canvas.drawRect(rectF, eventSolidP);
         canvas.drawRect(rectF.left, rectF.top, rectF.left + ViewUtil.dpToPx(3), rectF.bottom, eventEditP);
+        drawContent(canvas, event, rectF);
     }
 
-    private void drawEventOnEdit(Canvas canvas, Event eventModel, RectF rectF) {
+    private void drawEventOnEdit(Canvas canvas, Event event, RectF rectF) {
         canvas.drawRect(rectF, eventEditP);
+        drawContent(canvas, event, rectF);
+
         PointF topDragHandlerPoint = getTopScallerPoint(rectF);
         canvas.drawCircle(topDragHandlerPoint.x, topDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
 
         PointF bottomDragHandlerPoint = getBottomScallerPoint(rectF);
         canvas.drawCircle(bottomDragHandlerPoint.x, bottomDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
+
+    }
+
+    private void drawContent(Canvas canvas, Event event, RectF rectF) {
+        int save = canvas.save();
+        canvas.translate(rectF.left + eventPadding, rectF.top + eventPadding);
+        int width = (int) (rectF.width() - 2 * eventPadding);
+        StaticLayout myStaticLayout = new StaticLayout(event.text, 0, event.text.length(),
+                eventContentP, width,
+                Layout.Alignment.ALIGN_NORMAL,
+                1.0f, 0.0f,
+                false,
+                null, width);
+        myStaticLayout.draw(canvas);
+        canvas.restoreToCount(save);
     }
 
     private PointF getTopScallerPoint(RectF eventRectF) {
@@ -492,4 +494,11 @@ public class EventHelper {
             timeLineEventViewWR.clear();
         }
     }
+
+    private Comparator<Event> eventComparator = new Comparator<Event>() {
+        @Override
+        public int compare(Event o1, Event o2) {
+            return (int) (o1.timeStart - o2.timeStart);
+        }
+    };
 }

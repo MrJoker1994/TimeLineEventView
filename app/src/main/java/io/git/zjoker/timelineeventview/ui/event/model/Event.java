@@ -10,7 +10,7 @@ public class Event {
     public long timeStart;
     public long timeTaken;
     public int status = STATUS_NORMAL;
-
+    public CharSequence text = "sdkflsjdlfjskldjfklsdjfklsdjfkldsjklf我岁分开祭祀的快乐佛教四大克利夫兰科技";
     public Event(long timeStart, long timeTaken) {
         this.timeStart = timeStart;
         this.timeTaken = timeTaken;
@@ -50,5 +50,9 @@ public class Event {
 
     public void scaleBottomBy(long timeAdjust) {
         timeTaken += timeAdjust;
+    }
+
+    public long getTimeEnd() {
+        return timeStart+timeTaken;
     }
 }
