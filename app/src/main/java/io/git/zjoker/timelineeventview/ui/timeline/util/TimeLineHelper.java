@@ -4,7 +4,11 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.text.TextPaint;
 import android.text.TextUtils;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.ViewTreeObserver;
 import android.widget.ScrollView;
 
@@ -23,7 +27,7 @@ public class TimeLineHelper {
     private int vWidth;
     private List<TimeLineModel> timeLineModels;
     public static int TIME_LINE_TOTAL_COUNT = 24;
-    private Paint timeTextP;
+    private TextPaint timeTextP;
     private Paint timeLineP;
     private Paint curTimeP;
     //    private int timeTextWidth;
@@ -36,23 +40,32 @@ public class TimeLineHelper {
     private boolean eventAdjusting;
     private long timeAdjust;
 
-    public TimeLineHelper() {
+    private float scale = 1;
+
+    private float timeUnitHeight = scale * UNIT_HEIGHT;
+
+    private ScaleGestureDetector gestureDetector;
+    private TimeLineEventWatcher timeLineEventWatcher;
+    private boolean scaleing;
+
+    public TimeLineHelper(TimeLineEventWatcher timeLineEventWatcher) {
+        this.timeLineEventWatcher = timeLineEventWatcher;
         topSpace = ViewUtil.dpToPx(30);
         bottomSpace = topSpace;
         timeLineModels = new ArrayList<>();
-        timeTextP = new Paint();
-        timeTextP.setStrokeWidth(2);
-        timeTextP.setTextSize(50);
+        timeTextP = new TextPaint();
+        timeTextP.setTextSize(ViewUtil.spToPx(18));
         timeTextP.setColor(Color.GRAY);
 
         timeLineP = new Paint();
-        timeLineP.setStrokeWidth(2);
+        timeLineP.setStrokeWidth(ViewUtil.dpToPx(1));
         timeLineP.setColor(Color.GRAY);
 
         curTimeP = new Paint();
-        curTimeP.setStrokeWidth(2);
+        curTimeP.setStrokeWidth(ViewUtil.dpToPx(1));
         curTimeP.setColor(Color.RED);
         reset();
+
     }
 
     private ScrollView getRV() {
@@ -75,7 +88,56 @@ public class TimeLineHelper {
         });
         calculateTimeLinesArray();
 
+        gestureDetector = new ScaleGestureDetector(getRV().getContext(), new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            private float centerY;
+
+            @Override
+            public boolean onScaleBegin(ScaleGestureDetector detector) {
+                scaleing = true;
+                centerY = detector.getFocusY();
+                return super.onScaleBegin(detector);
+            }
+
+            @Override
+            public boolean onScale(final ScaleGestureDetector detector) {
+                float realTimeUnitHeight = timeUnitHeight * detector.getScaleFactor();
+                if (realTimeUnitHeight < UNIT_HEIGHT) {
+                    realTimeUnitHeight = UNIT_HEIGHT;
+                } else if (realTimeUnitHeight > 3 * UNIT_HEIGHT) {
+                    realTimeUnitHeight = 3 * UNIT_HEIGHT;
+                }
+                float realScaleFactor = realTimeUnitHeight / timeUnitHeight;
+                timeUnitHeight = realTimeUnitHeight;
+                calculateTimeLinesArray();
+                if (timeLineEventWatcher != null) {
+                    timeLineEventWatcher.onScale();
+
+                }
+//                getRV().post(new Runnable() {
+//                    @Override
+//                    public void run() {
+                Log.d("onScale", "--" + centerY + "--" + realScaleFactor * centerY);
+
+                getRV().scrollBy(0, (int) (realScaleFactor * centerY - centerY));
+                centerY = detector.getScaleFactor() * centerY;
+//                    }
+//                });
+                return true;
+            }
+
+            @Override
+            public void onScaleEnd(ScaleGestureDetector detector) {
+                scaleing = false;
+                super.onScaleEnd(detector);
+            }
+        });
+
         invalidate();
+    }
+
+    public boolean onTouchEvent(MotionEvent me) {
+        gestureDetector.onTouchEvent(me);
+        return gestureDetector.isInProgress();
     }
 
     private void adjustPadding() {
@@ -89,10 +151,11 @@ public class TimeLineHelper {
     }
 
     private float getAllLineHeight() {
-        return (TIME_LINE_TOTAL_COUNT - 1) * UNIT_HEIGHT;
+        return (TIME_LINE_TOTAL_COUNT - 1) * timeUnitHeight;
     }
 
     private void calculateTimeLinesArray() {
+        timeLineModels.clear();
         String tip;
         float topOffset = getTopOffset();
         for (int i = 0; i < TIME_LINE_TOTAL_COUNT; i++) {
@@ -101,7 +164,7 @@ public class TimeLineHelper {
             } else {
                 tip = String.format(TIME_TEXT_FORMAT_HOUR, i);
             }
-            timeLineModels.add(new TimeLineModel(i * UNIT_HEIGHT + topOffset, tip));
+            timeLineModels.add(new TimeLineModel(i * timeUnitHeight + topOffset, tip));
         }
     }
 
@@ -217,5 +280,9 @@ public class TimeLineHelper {
 
     public void onEventAdjustEnd() {
         this.eventAdjusting = false;
+    }
+
+    public interface TimeLineEventWatcher {
+        void onScale();
     }
 }

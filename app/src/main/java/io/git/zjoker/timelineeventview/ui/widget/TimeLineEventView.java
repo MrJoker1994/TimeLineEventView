@@ -14,7 +14,7 @@ import android.widget.ScrollView;
 import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.util.TimeLineHelper;
 
-public class TimeLineEventView extends ScrollView implements EventHelper.EventAdjustListener{
+public class TimeLineEventView extends ScrollView implements EventHelper.EventAdjustListener, TimeLineHelper.TimeLineEventWatcher {
     private TimeLineHelper timeLineHelper;
     private EventHelper eventHelper;
     private SpaceView spaceView;
@@ -38,7 +38,7 @@ public class TimeLineEventView extends ScrollView implements EventHelper.EventAd
         spaceView = new SpaceView(getContext());
         addView(spaceView);
 
-        timeLineHelper = new TimeLineHelper();
+        timeLineHelper = new TimeLineHelper(this);
         timeLineHelper.attach(this);
 
         setSpaceViewHeight((int) timeLineHelper.getTotalHeight());
@@ -72,7 +72,7 @@ public class TimeLineEventView extends ScrollView implements EventHelper.EventAd
 
 
     public boolean canScroll(boolean isScrollToUp) {
-        if(isScrollToUp) {
+        if (isScrollToUp) {
             return getScrollY() < getTotalHeight() - getHeight();
         } else {
             return getScrollY() > 0;
@@ -82,6 +82,9 @@ public class TimeLineEventView extends ScrollView implements EventHelper.EventAd
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
         if (eventHelper.onTouchEvent(ev)) {
+            return true;
+        }
+        if (timeLineHelper.onTouchEvent(ev)) {
             return true;
         }
         return super.dispatchTouchEvent(ev);
@@ -106,7 +109,12 @@ public class TimeLineEventView extends ScrollView implements EventHelper.EventAd
 
     @Override
     public void onEventAdjustWithScroll(int scrollTo) {
-        scrollTo(0,scrollTo);
+        scrollTo(0, scrollTo);
+    }
+
+    @Override
+    public void onScale() {
+        setSpaceViewHeight((int) timeLineHelper.getTotalHeight());
     }
 
     private static class SpaceView extends View {
@@ -125,4 +133,5 @@ public class TimeLineEventView extends ScrollView implements EventHelper.EventAd
             setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), realHeight);
         }
     }
+
 }
