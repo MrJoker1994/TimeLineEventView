@@ -43,7 +43,7 @@ public class EventHelper {
     private EventAdjustListener eventAdjustListener;
 
     private float moveDistanceY;
-    private float moveDistanceX;//滚动的时候用于判断move距离的，因为滚动的时候如果手指不动需要把move距离置为0
+    private float moveDistanceX;
     private float moveDistanceYInScroll;//滚动的时候用于判断move距离的，因为滚动的时候如果手指不动需要把move距离置为0
     private float lastTouchY;
     private float lastTouchX;
@@ -361,7 +361,6 @@ public class EventHelper {
                 if (eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustWithScroll(scrollTo);
                 }
-//                Log.d("onAnimationUpdate", String.valueOf(moveDistanceY));
                 checkEditEvent(moveDistanceX, scrollTo - lastScrollBy + moveDistanceYInScroll);//滚动距离+滚动时的move距离
                 lastScrollBy = scrollTo;
                 moveDistanceYInScroll = 0;

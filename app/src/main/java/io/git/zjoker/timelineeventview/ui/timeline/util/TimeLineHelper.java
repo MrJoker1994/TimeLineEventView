@@ -124,18 +124,21 @@ public class TimeLineHelper {
 
     private void checkDrawTimeWhenEventAdjusting(Canvas canvas) {
         if (eventAdjusting) {
-            String adjustingUnit = getAdjustingUnit(timeAdjust);
+            long timeOnFloor = getTimeOnFloor(timeAdjust);
+            String adjustingUnit = getAdjustingUnit(timeOnFloor);
             if (!TextUtils.isEmpty(adjustingUnit)) {
                 float textWidth = timeTextP.measureText(adjustingUnit);
-                float offsetY = getOffsetYByTime(timeAdjust);
+                float offsetY = getOffsetYByTime(timeOnFloor);
                 canvas.drawText(adjustingUnit, lineStartX - textWidth, offsetY, timeTextP);
             }
         }
     }
 
-    private String getAdjustingUnit(long timeAdjust) {
+    private long getTimeOnFloor(long timeAdjust) {//向下取每个单位(类似Math.floor())
         Calendar instance = Calendar.getInstance();
         instance.setTimeInMillis(timeAdjust);
+        instance.clear(Calendar.SECOND);
+        instance.clear(Calendar.MILLISECOND);
         int minute = instance.get(Calendar.MINUTE);
         if (15 < minute && minute < 30) {
             minute = 15;
@@ -144,9 +147,17 @@ public class TimeLineHelper {
         } else if (45 <= minute && minute < 60) {
             minute = 45;
         } else {
-            return null;
+            minute = 0;
         }
-        return String.format(":%s", minute);
+        instance.set(Calendar.MINUTE, minute);
+        return instance.getTimeInMillis();
+    }
+
+    private String getAdjustingUnit(long timeAdjust) {
+        Calendar instance = Calendar.getInstance();
+        instance.setTimeInMillis(timeAdjust);
+        int minute = instance.get(Calendar.MINUTE);
+        return minute != 0 ? String.format(":%s", minute) : null;
     }
 
 
