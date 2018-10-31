@@ -43,8 +43,6 @@ public class EventHelper {
     private EventAdjustListener eventAdjustListener;
 
     private float moveDistanceY;
-    private float moveDistanceX;
-    private float moveDistanceYInScroll;//滚动的时候用于判断move距离的，因为滚动的时候如果手指不动需要把move距离置为0
     private float lastTouchY;
     private float lastTouchX;
 
@@ -263,27 +261,24 @@ public class EventHelper {
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                moveDistanceYInScroll = moveDistanceY = 0;
-                moveDistanceX = 0;
+                moveDistanceY = 0;
                 stopScroll();
                 if (hasEventUnderTouch && eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustEnd();
                 }
-                if(eventEditingCache != null) {
+                if (eventEditingCache != null) {
                     eventEditingCache.reset();
                     invalidate();
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
-                moveDistanceYInScroll = moveDistanceY = motionEvent.getY() - lastTouchY;
-                moveDistanceX = motionEvent.getX() - lastTouchX;
+                moveDistanceY = motionEvent.getY() - lastTouchY;
+                float moveDistanceX = motionEvent.getX() - lastTouchX;
                 lastTouchY = motionEvent.getY();
                 lastTouchX = motionEvent.getX();
                 if (hasEventUnderTouch) {
-                    if (!checkScroll(lastTouchY)) {
-                        Log.d("checkScroll", String.valueOf(moveDistanceX));
-                        checkEditEvent(moveDistanceX, moveDistanceY);
-                    }
+                    checkScroll(lastTouchY);
+                    checkEditEvent(moveDistanceX, moveDistanceY);
                     return true;
                 }
                 break;
@@ -324,10 +319,10 @@ public class EventHelper {
 
     private boolean checkScroll(float touchY) {
         int adjustSpace = getV().getHeight() / 8;
-        if (touchY < adjustSpace && moveDistanceYInScroll <= 0 && getV().canScroll(false)) {
+        if (touchY < adjustSpace && moveDistanceY <= 0 && getV().canScroll(false)) {
             startScroll(false);
             return true;
-        } else if (touchY > getV().getHeight() - adjustSpace && moveDistanceYInScroll >= 0 && getV().canScroll(true)) {
+        } else if (touchY > getV().getHeight() - adjustSpace && moveDistanceY >= 0 && getV().canScroll(true)) {
             startScroll(true);
             return true;
         } else {
@@ -350,7 +345,6 @@ public class EventHelper {
             from = getV().getScrollY();
             target = 0;
         }
-        moveDistanceYInScroll = 0;
         scrollAnimator = ObjectAnimator.ofInt(from, target).setDuration(Math.abs(target - from));
         scrollAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             private int lastScrollBy = from;
@@ -361,9 +355,8 @@ public class EventHelper {
                 if (eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustWithScroll(scrollTo);
                 }
-                checkEditEvent(moveDistanceX, scrollTo - lastScrollBy + moveDistanceYInScroll);//滚动距离+滚动时的move距离
+                checkEditEvent(0, scrollTo - lastScrollBy);//滚动距离+滚动时的move距离
                 lastScrollBy = scrollTo;
-                moveDistanceYInScroll = 0;
             }
         });
         scrollAnimator.start();
