@@ -9,9 +9,7 @@ import android.graphics.PointF;
 import android.graphics.RectF;
 import android.text.Layout;
 import android.text.StaticLayout;
-import android.text.TextDirectionHeuristics;
 import android.text.TextPaint;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -20,8 +18,6 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 
 import io.git.zjoker.timelineeventview.ui.event.model.Event;
@@ -47,8 +43,10 @@ public class EventHelper {
     private EventAdjustListener eventAdjustListener;
 
     private float moveDistanceY;
+    private float moveDistanceX;//滚动的时候用于判断move距离的，因为滚动的时候如果手指不动需要把move距离置为0
     private float moveDistanceYInScroll;//滚动的时候用于判断move距离的，因为滚动的时候如果手指不动需要把move距离置为0
     private float lastTouchY;
+    private float lastTouchX;
 
     private float eventPadding;
     private float eventLevelWidth;//每一级缩进的宽度
@@ -157,7 +155,8 @@ public class EventHelper {
                         eventUnderTouch = createEvent(e.getY());
                         events.add(eventUnderTouch);
                     }
-                    eventEditingCache = EventCache.build(eventUnderTouch);
+                    float xOffset = getV().getRectOnTimeLine(eventUnderTouch.timeStart, eventUnderTouch.timeTaken).left;
+                    eventEditingCache = EventCache.build(eventUnderTouch, xOffset);
 
                     hasEventUnderTouch = true;
                     if (eventAdjustListener != null) {
@@ -260,23 +259,30 @@ public class EventHelper {
         switch (motionEvent.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 lastTouchY = motionEvent.getY();
+                lastTouchX = motionEvent.getX();
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 moveDistanceYInScroll = moveDistanceY = 0;
+                moveDistanceX = 0;
                 stopScroll();
                 if (hasEventUnderTouch && eventAdjustListener != null) {
                     eventAdjustListener.onEventAdjustEnd();
                 }
+                if(eventEditingCache != null) {
+                    eventEditingCache.reset();
+                    invalidate();
+                }
                 break;
             case MotionEvent.ACTION_MOVE:
                 moveDistanceYInScroll = moveDistanceY = motionEvent.getY() - lastTouchY;
-
-                Log.d("checkScroll", String.valueOf(moveDistanceY));
+                moveDistanceX = motionEvent.getX() - lastTouchX;
                 lastTouchY = motionEvent.getY();
+                lastTouchX = motionEvent.getX();
                 if (hasEventUnderTouch) {
                     if (!checkScroll(lastTouchY)) {
-                        checkEditEvent(motionEvent.getX(), lastTouchY, moveDistanceY);
+                        Log.d("checkScroll", String.valueOf(moveDistanceX));
+                        checkEditEvent(moveDistanceX, moveDistanceY);
                     }
                     return true;
                 }
@@ -285,13 +291,13 @@ public class EventHelper {
         return hasEventUnderTouch;
     }
 
-    private boolean checkEditEvent(float touchX, float touchY, float moveDistanceY) {
-        if (moveDistanceY != 0 && eventEditingCache != null) {
+    private boolean checkEditEvent(float moveDistanceX, float moveDistanceY) {
+        if ((moveDistanceY != 0 || moveDistanceX != 0) && eventEditingCache != null) {
             long timeAdjust = getV().getTimeByDistance(moveDistanceY);
-            Log.d("checkEditEvent", timeAdjust + "--" + moveDistanceY);
+            Log.d("checkEditEvent", moveDistanceX + "--");
             long timeAdjustBound;
             if (eventEditingCache.status == STATUS_EDITING) {
-                eventEditingCache.moveBy(timeAdjust);
+                eventEditingCache.moveBy(moveDistanceX, timeAdjust);
                 timeAdjustBound = eventEditingCache.newEvent.timeStart;
             } else if (eventEditingCache.status == STATUS_SCALING_TOP) {
                 eventEditingCache.scaleTopBy(timeAdjust);
@@ -356,7 +362,7 @@ public class EventHelper {
                     eventAdjustListener.onEventAdjustWithScroll(scrollTo);
                 }
 //                Log.d("onAnimationUpdate", String.valueOf(moveDistanceY));
-                checkEditEvent(0, lastTouchY, scrollTo - lastScrollBy + moveDistanceYInScroll);//滚动距离+滚动时的move距离
+                checkEditEvent(moveDistanceX, scrollTo - lastScrollBy + moveDistanceYInScroll);//滚动距离+滚动时的move距离
                 lastScrollBy = scrollTo;
                 moveDistanceYInScroll = 0;
             }
@@ -390,7 +396,7 @@ public class EventHelper {
             drawEvents(eventNode.childNodes, canvas);
         }
         if (eventEditingCache != null) {
-            drawEventOnEdit(canvas, eventEditingCache.newEvent);
+            drawEventOnEdit(canvas, eventEditingCache);
         }
     }
 
@@ -416,17 +422,17 @@ public class EventHelper {
         drawContent(canvas, event, rectF);
     }
 
-    private void drawEventOnEdit(Canvas canvas, Event event) {
-        RectF rectF = getV().getRectOnTimeLine(event.timeStart, event.timeTaken);
+    private void drawEventOnEdit(Canvas canvas, EventCache eventCache) {
+        RectF rectF = getV().getRectOnTimeLine(eventCache.newEvent.timeStart, eventCache.newEvent.timeTaken);
+        rectF.offsetTo(eventCache.newX, rectF.top);
         canvas.drawRect(rectF, eventEditP);
-        drawContent(canvas, event, rectF);
+        drawContent(canvas, eventCache.newEvent, rectF);
 
         PointF topDragHandlerPoint = getTopScallerPoint(rectF);
         canvas.drawCircle(topDragHandlerPoint.x, topDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
 
         PointF bottomDragHandlerPoint = getBottomScallerPoint(rectF);
         canvas.drawCircle(bottomDragHandlerPoint.x, bottomDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
-
     }
 
     private void drawContent(Canvas canvas, Event event, RectF rectF) {

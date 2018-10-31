@@ -7,16 +7,20 @@ public class EventCache {
 
     public Event originEvent;
     public Event newEvent;
+    public float originX;
+    public float newX;
     public int status = STATUS_EDITING;
 
-    private EventCache(Event event, int status) {
+    private EventCache(Event event, int status, float originX) {
         this.originEvent = event;
         this.newEvent = originEvent.clone();
         this.status = status;
+        this.originX = originX;
+        newX = originX;
     }
 
-    public static EventCache build(Event event) {
-        return new EventCache(event,STATUS_EDITING);
+    public static EventCache build(Event event, float touchX) {
+        return new EventCache(event, STATUS_EDITING, touchX);
     }
 
     public void changeToEdit() {
@@ -31,12 +35,13 @@ public class EventCache {
         this.status = STATUS_SCALING_BOTTOM;
     }
 
-    public void moveBy(long timeAdjust) {
+    public void moveBy(float moveX, long timeAdjust) {
+        newX += moveX;
         newEvent.timeStart += timeAdjust;
     }
 
     public void scaleTopBy(long timeAdjust) {
-        moveBy(timeAdjust);
+        moveBy(0, timeAdjust);
         scaleBottomBy(-timeAdjust);
     }
 
@@ -47,5 +52,9 @@ public class EventCache {
     public void refreshOrigin() {
         originEvent.timeStart = newEvent.timeStart;
         originEvent.timeTaken = newEvent.timeTaken;
+    }
+
+    public void reset() {
+        newX = originX;
     }
 }
