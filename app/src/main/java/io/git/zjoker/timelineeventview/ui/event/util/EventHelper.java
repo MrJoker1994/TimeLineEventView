@@ -25,36 +25,38 @@ import java.util.LinkedList;
 import java.util.List;
 
 import io.git.zjoker.timelineeventview.ui.event.model.Event;
+import io.git.zjoker.timelineeventview.ui.event.model.EventCache;
 import io.git.zjoker.timelineeventview.ui.event.model.EventNode;
 import io.git.zjoker.timelineeventview.ui.widget.TimeLineEventView;
 import io.git.zjoker.timelineeventview.util.ViewUtil;
 
-import static io.git.zjoker.timelineeventview.ui.event.model.Event.STATUS_EDITING;
-import static io.git.zjoker.timelineeventview.ui.event.model.Event.STATUS_NORMAL;
-import static io.git.zjoker.timelineeventview.ui.event.model.Event.STATUS_SCALING_TOP;
+import static io.git.zjoker.timelineeventview.ui.event.model.EventCache.STATUS_EDITING;
+import static io.git.zjoker.timelineeventview.ui.event.model.EventCache.STATUS_SCALING_TOP;
 
 public class EventHelper {
-    private List<Event> events;
+    public static final long DEFAULT_EVENT_TIME_TAKEN = 50 * 60 * 1000;
     private WeakReference<TimeLineEventView> timeLineEventViewWR;
+
     private Paint eventSolidP;
     private Paint eventEditP;
     private Paint eventDragHandlerP;
     private TextPaint eventContentP;
     private GestureDetector gestureDetector;
-    public static final long DEFAULT_EVENT_TIME_TAKEN = 50 * 60 * 1000;
 
-    private int editingPostion = -1;
     private float dragHandlerRadius;
     private EventAdjustListener eventAdjustListener;
-    private boolean hasEventUnderTouch;
 
     private float moveDistanceY;
     private float moveDistanceYInScroll;//滚动的时候用于判断move距离的，因为滚动的时候如果手指不动需要把move距离置为0
     private float lastTouchY;
 
-    private ValueAnimator scrollAnimator;
-    private EventNode eventEditing;
     private float eventPadding;
+    private float eventLevelWidth;//每一级缩进的宽度
+
+    private EventCache eventEditingCache;
+
+    private List<Event> events;
+    private ValueAnimator scrollAnimator;
 
     public EventHelper() {
         this.events = new ArrayList<>();
@@ -80,7 +82,10 @@ public class EventHelper {
         dragHandlerRadius = ViewUtil.dpToPx(15);
 
         eventPadding = ViewUtil.dpToPx(8);
+        eventLevelWidth = ViewUtil.dpToPx(5);
     }
+
+    private boolean hasEventUnderTouch;
 
     public void setEventAdjustListener(EventAdjustListener eventAdjustListener) {
         this.eventAdjustListener = eventAdjustListener;
@@ -146,15 +151,14 @@ public class EventHelper {
                 float touchX = e.getX();
                 float touchY = getYWithScroll(e.getY());
 
-                if (getEventEditing() == null) {
+                if (eventEditingCache == null) {
                     Event eventUnderTouch = getEventUnderTouch(touchX, touchY);
                     if (eventUnderTouch == null) {
                         eventUnderTouch = createEvent(e.getY());
-                        eventUnderTouch.changeToEdit();
                         events.add(eventUnderTouch);
-                    } else {
-                        eventUnderTouch.changeToEdit();
                     }
+                    eventEditingCache = EventCache.build(eventUnderTouch);
+
                     hasEventUnderTouch = true;
                     if (eventAdjustListener != null) {
                         eventAdjustListener.onEventAdjusting(eventUnderTouch.timeStart);
@@ -167,16 +171,15 @@ public class EventHelper {
             public boolean onDown(MotionEvent e) {
                 float touchX = e.getX();
                 float touchY = getYWithScroll(e.getY());
-                Event eventEditing = getEventEditing();
-                if (eventEditing != null) {
-                    if (isTopScalerUnderTouch(eventEditing, touchX, touchY)) {
-                        eventEditing.changeToScaleTop();
+                if (eventEditingCache != null) {
+                    if (isTopScalerUnderTouch(eventEditingCache.newEvent, touchX, touchY)) {
+                        eventEditingCache.changeToScaleTop();
                         hasEventUnderTouch = true;
-                    } else if (isBottomScalerUnderTouch(eventEditing, touchX, touchY)) {
-                        eventEditing.changeToScaleBottom();
+                    } else if (isBottomScalerUnderTouch(eventEditingCache.newEvent, touchX, touchY)) {
+                        eventEditingCache.changeToScaleBottom();
                         hasEventUnderTouch = true;
-                    } else if (isEventUnderTouch(eventEditing, touchX, touchY)) {
-                        eventEditing.changeToEdit();
+                    } else if (isEventUnderTouch(eventEditingCache.newEvent, touchX, touchY)) {
+                        eventEditingCache.changeToEdit();
                         hasEventUnderTouch = true;
                     } else {
                         hasEventUnderTouch = false;
@@ -189,7 +192,7 @@ public class EventHelper {
 
             @Override
             public boolean onSingleTapUp(MotionEvent e) {
-                boolean hasEditingEvent = getEventEditing() != null;
+                boolean hasEditingEvent = eventEditingCache != null;
                 if (hasEditingEvent && !hasEventUnderTouch) {
                     resetEventStatus();
                     if (eventAdjustListener != null) {
@@ -249,7 +252,7 @@ public class EventHelper {
 
     private Event createEvent(float touchY) {
         long timeStart = getV().getTimeByOffsetY(touchY);
-        return new Event(timeStart, DEFAULT_EVENT_TIME_TAKEN, STATUS_EDITING);
+        return new Event(timeStart, DEFAULT_EVENT_TIME_TAKEN);
     }
 
     public boolean onTouchEvent(MotionEvent motionEvent) {
@@ -283,26 +286,25 @@ public class EventHelper {
     }
 
     private boolean checkEditEvent(float touchX, float touchY, float moveDistanceY) {
-        Event eventEditing = getEventEditing();
-        if (moveDistanceY != 0 && eventEditing != null) {
+        if (moveDistanceY != 0 && eventEditingCache != null) {
             long timeAdjust = getV().getTimeByDistance(moveDistanceY);
             Log.d("checkEditEvent", timeAdjust + "--" + moveDistanceY);
             long timeAdjustBound;
-            if (eventEditing.status == STATUS_EDITING) {
-                eventEditing.moveBy(timeAdjust);
-                timeAdjustBound = eventEditing.timeStart;
-            } else if (eventEditing.status == STATUS_SCALING_TOP) {
-                eventEditing.scaleTopBy(timeAdjust);
-                if (DEFAULT_EVENT_TIME_TAKEN > eventEditing.timeTaken) {
-                    eventEditing.scaleTopBy(eventEditing.timeTaken - DEFAULT_EVENT_TIME_TAKEN);
+            if (eventEditingCache.status == STATUS_EDITING) {
+                eventEditingCache.moveBy(timeAdjust);
+                timeAdjustBound = eventEditingCache.newEvent.timeStart;
+            } else if (eventEditingCache.status == STATUS_SCALING_TOP) {
+                eventEditingCache.scaleTopBy(timeAdjust);
+                if (DEFAULT_EVENT_TIME_TAKEN > eventEditingCache.newEvent.timeTaken) {
+                    eventEditingCache.scaleTopBy(eventEditingCache.newEvent.timeTaken - DEFAULT_EVENT_TIME_TAKEN);
                 }
-                timeAdjustBound = eventEditing.timeStart;
+                timeAdjustBound = eventEditingCache.newEvent.timeStart;
             } else {
-                eventEditing.scaleBottomBy(timeAdjust);
-                if (DEFAULT_EVENT_TIME_TAKEN > eventEditing.timeTaken) {
-                    eventEditing.scaleBottomBy(DEFAULT_EVENT_TIME_TAKEN - eventEditing.timeTaken);
+                eventEditingCache.scaleBottomBy(timeAdjust);
+                if (DEFAULT_EVENT_TIME_TAKEN > eventEditingCache.newEvent.timeTaken) {
+                    eventEditingCache.scaleBottomBy(DEFAULT_EVENT_TIME_TAKEN - eventEditingCache.newEvent.timeTaken);
                 }
-                timeAdjustBound = eventEditing.getTimeEnd();
+                timeAdjustBound = eventEditingCache.newEvent.getTimeEnd();
             }
 
             invalidate();
@@ -368,16 +370,6 @@ public class EventHelper {
         }
     }
 
-    private Event getEventEditing() {
-        for (int i = 0; i < events.size(); i++) {
-            Event eventModel = events.get(i);
-            if (eventModel.status != STATUS_NORMAL) {
-                return eventModel;
-            }
-        }
-        return null;
-    }
-
     public void draw(Canvas canvas) {
         EventNode eventNode = buildEventTree();
         if (eventNode.childNodes.size() == 0) {
@@ -387,9 +379,8 @@ public class EventHelper {
     }
 
     private void resetEventStatus() {
-        for (int i = 0; i < events.size(); i++) {
-            events.get(i).changeToNormal();
-        }
+        eventEditingCache.refreshOrigin();
+        eventEditingCache = null;
     }
 
     private void drawEvents(List<EventNode> nodes, Canvas canvas) {
@@ -398,32 +389,23 @@ public class EventHelper {
             drawSingleEvent(eventNode, canvas);
             drawEvents(eventNode.childNodes, canvas);
         }
+        if (eventEditingCache != null) {
+            drawEventOnEdit(canvas, eventEditingCache.newEvent);
+        }
     }
 
     private void drawSingleEvent(EventNode node, Canvas canvas) {
         RectF rectF = getV().getRectOnTimeLine(node.event.timeStart, node.event.timeTaken);
-        if (node.event.status != STATUS_NORMAL) {
-            drawEventOnEdit(canvas, node.event, rectF);
-            if (!node.sameNodes.isEmpty()) {
-                float rectWidth = rectF.width() / (node.sameNodes.size());
-                RectF sameNodeRect = new RectF(rectF.left, rectF.top, rectWidth, rectF.top);
-                for (int i = 0; i < node.sameNodes.size(); i++) {
-                    sameNodeRect.offsetTo(i * rectWidth, rectF.top);
-                    drawEventOnNormal(canvas, node.sameNodes.get(0).event, sameNodeRect);
-                }
-            }
+        rectF.left += (node.level - 1) * eventLevelWidth;
+        if (node.sameNodes.isEmpty()) {
+            drawEventOnNormal(canvas, node.event, rectF);
         } else {
-            rectF.left += (node.level - 1) * 10;
-            if (node.sameNodes.isEmpty()) {
-                drawEventOnNormal(canvas, node.event, rectF);
-            } else {
-                float rectWidth = rectF.width() / (node.sameNodes.size() + 1);
-                RectF sameNodeRect = new RectF(rectF.left, rectF.top, rectF.left + rectWidth, rectF.bottom);
-                drawEventOnNormal(canvas, node.event, sameNodeRect);
-                for (int i = 0; i < node.sameNodes.size(); i++) {
-                    sameNodeRect.offset(rectWidth, 0);
-                    drawEventOnNormal(canvas, node.sameNodes.get(0).event, sameNodeRect);
-                }
+            float rectWidth = rectF.width() / (node.sameNodes.size() + 1);
+            RectF sameNodeRect = new RectF(rectF.left, rectF.top, rectF.left + rectWidth, rectF.bottom);
+            drawEventOnNormal(canvas, node.event, sameNodeRect);
+            for (int i = 0; i < node.sameNodes.size(); i++) {
+                sameNodeRect.offset(rectWidth, 0);
+                drawEventOnNormal(canvas, node.sameNodes.get(0).event, sameNodeRect);
             }
         }
     }
@@ -434,7 +416,8 @@ public class EventHelper {
         drawContent(canvas, event, rectF);
     }
 
-    private void drawEventOnEdit(Canvas canvas, Event event, RectF rectF) {
+    private void drawEventOnEdit(Canvas canvas, Event event) {
+        RectF rectF = getV().getRectOnTimeLine(event.timeStart, event.timeTaken);
         canvas.drawRect(rectF, eventEditP);
         drawContent(canvas, event, rectF);
 
