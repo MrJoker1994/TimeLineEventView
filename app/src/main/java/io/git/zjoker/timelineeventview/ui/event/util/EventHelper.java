@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.support.annotation.ColorInt;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
@@ -39,8 +40,9 @@ public class EventHelper {
     private TextPaint eventContentP;
     private GestureDetector gestureDetector;
 
-    private float dragHandlerRadius;
-    private EventAdjustListener eventAdjustListener;
+    private float scallerRadius;
+    private float scallerPadding;
+    private Callback eventAdjustListener;
 
     private float moveDistanceY;
     private float lastTouchY;
@@ -54,20 +56,29 @@ public class EventHelper {
     private List<Event> events;
     private ValueAnimator scrollAnimator;
 
+    @ColorInt
+    public static final int NORMAL_SOLID_COLOR = Color.parseColor("#AA9999AA");
+    @ColorInt
+    public static final int EDIT_SOLID_COLOR = Color.parseColor("#FFAAAAFF");
+    @ColorInt
+    public static final int SCALLER_SOLID_COLOR = Color.WHITE;
+    @ColorInt
+    public static final int SCALLER_STROKE_COLOR = Color.parseColor("#FFAAAAFF");
+
     public EventHelper() {
         this.events = new ArrayList<>();
         eventSolidP = new Paint();
         eventSolidP.setStyle(Paint.Style.FILL);
-        eventSolidP.setColor(Color.parseColor("#AA9999AA"));
+        eventSolidP.setColor(NORMAL_SOLID_COLOR);
 
         eventEditP = new Paint();
         eventEditP.setStyle(Paint.Style.FILL);
-        eventEditP.setColor(Color.parseColor("#FFAAAAFF"));
+        eventEditP.setColor(EDIT_SOLID_COLOR);
 
         eventDragHandlerP = new Paint();
-        eventDragHandlerP.setStyle(Paint.Style.STROKE);
+        eventDragHandlerP.setStyle(Paint.Style.FILL);
         eventDragHandlerP.setStrokeWidth(ViewUtil.dpToPx(2));
-        eventDragHandlerP.setColor(Color.parseColor("#FFAAAAFF"));
+        eventDragHandlerP.setColor(SCALLER_SOLID_COLOR);
 
 
         eventContentP = new TextPaint();
@@ -75,7 +86,8 @@ public class EventHelper {
         eventContentP.setTextSize(ViewUtil.spToPx(15));
         eventContentP.setStyle(Paint.Style.FILL);
 
-        dragHandlerRadius = ViewUtil.dpToPx(15);
+        scallerRadius = ViewUtil.dpToPx(5);
+        scallerPadding = ViewUtil.dpToPx(10);
 
         eventPadding = ViewUtil.dpToPx(8);
         eventLevelWidth = ViewUtil.dpToPx(5);
@@ -83,7 +95,7 @@ public class EventHelper {
 
     private boolean hasEventUnderTouch;
 
-    public void setEventAdjustListener(EventAdjustListener eventAdjustListener) {
+    public void setEventAdjustListener(Callback eventAdjustListener) {
         this.eventAdjustListener = eventAdjustListener;
     }
 
@@ -243,7 +255,8 @@ public class EventHelper {
     }
 
     private RectF getScalerRectF(float x, float y) {
-        return new RectF(x - dragHandlerRadius, y - dragHandlerRadius, x + dragHandlerRadius, y + dragHandlerRadius);
+        float halfSize = scallerRadius + scallerPadding;
+        return new RectF(x - halfSize, y - halfSize, x + halfSize, y + halfSize);
     }
 
 
@@ -421,10 +434,18 @@ public class EventHelper {
         drawContent(canvas, eventCache.newEvent, rectF);
 
         PointF topDragHandlerPoint = getTopScallerPoint(rectF);
-        canvas.drawCircle(topDragHandlerPoint.x, topDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
-
         PointF bottomDragHandlerPoint = getBottomScallerPoint(rectF);
-        canvas.drawCircle(bottomDragHandlerPoint.x, bottomDragHandlerPoint.y, dragHandlerRadius, eventDragHandlerP);
+        drawScaller(canvas, topDragHandlerPoint, bottomDragHandlerPoint);
+        eventDragHandlerP.setStyle(Paint.Style.STROKE);
+        eventDragHandlerP.setColor(SCALLER_STROKE_COLOR);
+        drawScaller(canvas, topDragHandlerPoint, bottomDragHandlerPoint);
+        eventDragHandlerP.setColor(SCALLER_SOLID_COLOR);
+        eventDragHandlerP.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawScaller(Canvas canvas, PointF topScaller, PointF bottomScaller) {
+        canvas.drawCircle(topScaller.x, topScaller.y, scallerRadius, eventDragHandlerP);
+        canvas.drawCircle(bottomScaller.x, bottomScaller.y, scallerRadius, eventDragHandlerP);
     }
 
     private void drawContent(Canvas canvas, Event event, RectF rectF) {
@@ -442,14 +463,15 @@ public class EventHelper {
     }
 
     private PointF getTopScallerPoint(RectF eventRectF) {
-        float size = 2 * dragHandlerRadius;
+        float size = 2 * scallerRadius;
         float topXOffset = eventRectF.right - size;
         float topYOffset = eventRectF.top;
         return new PointF(topXOffset, topYOffset);
     }
 
+
     private PointF getBottomScallerPoint(RectF eventRectF) {
-        float size = 2 * dragHandlerRadius;
+        float size = 2 * scallerRadius;
         float bottomXOffset = eventRectF.left + size;
         float bottomYOffset = eventRectF.bottom;
         return new PointF(bottomXOffset, bottomYOffset);
@@ -459,7 +481,7 @@ public class EventHelper {
         return timeLineEventViewWR.get();
     }
 
-    public interface EventAdjustListener {
+    public interface Callback {
         void onEventAdjusting(long timeAdjust);
 
         void onEventAdjustEnd();

@@ -6,7 +6,6 @@ import android.graphics.RectF;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ScrollView;
@@ -14,7 +13,7 @@ import android.widget.ScrollView;
 import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.util.TimeLineHelper;
 
-public class TimeLineEventView extends ScrollView implements EventHelper.EventAdjustListener, TimeLineHelper.TimeLineEventWatcher {
+public class TimeLineEventView extends ScrollView implements EventHelper.Callback, TimeLineHelper.TimeLineEventWatcher {
     private TimeLineHelper timeLineHelper;
     private EventHelper eventHelper;
     private SpaceView spaceView;
