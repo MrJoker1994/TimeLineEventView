@@ -23,6 +23,8 @@ import io.git.zjoker.timelineeventview.util.ViewUtil;
 public class TimeLineHelper {
     private WeakReference<ScrollView> timeLineRVWR;
     public static final String TIME_TEXT_FORMAT_HOUR = "%s:00";
+    public static final float MIN_SCALE = 1;
+    public static final float MAX_SCALE = 3;
     private static float UNIT_HEIGHT = ViewUtil.dpToPx(80);
     private int vWidth;
     private List<TimeLineModel> timeLineModels;
@@ -40,13 +42,10 @@ public class TimeLineHelper {
     private boolean eventAdjusting;
     private long timeAdjust;
 
-    private float scale = 1;
-
-    private float timeUnitHeight = scale * UNIT_HEIGHT;
+    private float timeUnitHeight = UNIT_HEIGHT;
 
     private ScaleGestureDetector gestureDetector;
     private TimeLineEventWatcher timeLineEventWatcher;
-    private boolean scaleing;
 
     public TimeLineHelper(TimeLineEventWatcher timeLineEventWatcher) {
         this.timeLineEventWatcher = timeLineEventWatcher;
@@ -93,7 +92,6 @@ public class TimeLineHelper {
 
             @Override
             public boolean onScaleBegin(ScaleGestureDetector detector) {
-                scaleing = true;
                 centerY = detector.getFocusY();
                 return super.onScaleBegin(detector);
             }
@@ -101,10 +99,10 @@ public class TimeLineHelper {
             @Override
             public boolean onScale(final ScaleGestureDetector detector) {
                 float realTimeUnitHeight = timeUnitHeight * detector.getScaleFactor();
-                if (realTimeUnitHeight < UNIT_HEIGHT) {
-                    realTimeUnitHeight = UNIT_HEIGHT;
-                } else if (realTimeUnitHeight > 3 * UNIT_HEIGHT) {
-                    realTimeUnitHeight = 3 * UNIT_HEIGHT;
+                if (realTimeUnitHeight < MIN_SCALE * UNIT_HEIGHT) {
+                    realTimeUnitHeight = MIN_SCALE * UNIT_HEIGHT;
+                } else if (realTimeUnitHeight > MAX_SCALE * UNIT_HEIGHT) {
+                    realTimeUnitHeight = MAX_SCALE * UNIT_HEIGHT;
                 }
                 float realScaleFactor = realTimeUnitHeight / timeUnitHeight;
                 timeUnitHeight = realTimeUnitHeight;
@@ -113,22 +111,12 @@ public class TimeLineHelper {
                     timeLineEventWatcher.onScale();
 
                 }
-//                getRV().post(new Runnable() {
-//                    @Override
-//                    public void run() {
+
                 Log.d("onScale", "--" + centerY + "--" + realScaleFactor * centerY);
 
                 getRV().scrollBy(0, (int) (realScaleFactor * centerY - centerY));
-                centerY = detector.getScaleFactor() * centerY;
-//                    }
-//                });
+                centerY = realScaleFactor * centerY;
                 return true;
-            }
-
-            @Override
-            public void onScaleEnd(ScaleGestureDetector detector) {
-                scaleing = false;
-                super.onScaleEnd(detector);
             }
         });
 
