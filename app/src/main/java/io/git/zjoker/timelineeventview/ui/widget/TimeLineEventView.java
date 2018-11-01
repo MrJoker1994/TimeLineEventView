@@ -10,6 +10,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ScrollView;
 
+import io.git.zjoker.timelineeventview.ui.event.model.Event;
 import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.util.TimeLineHelper;
 
@@ -80,9 +81,7 @@ public class TimeLineEventView extends ScrollView implements EventHelper.Callbac
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        if (eventHelper.onTouchEvent(ev)) {
-            return true;
-        }
+
         if (timeLineHelper.onTouchEvent(ev)) {
             return true;
         }
@@ -114,6 +113,10 @@ public class TimeLineEventView extends ScrollView implements EventHelper.Callbac
     @Override
     public void onScale() {
         setSpaceViewHeight((int) timeLineHelper.getTotalHeight());
+    }
+
+    public Event getEventUnderTouch(float touchX, float touchY) {
+        return eventHelper.getEventUnderTouch(touchX,touchY);
     }
 
     private static class SpaceView extends View {

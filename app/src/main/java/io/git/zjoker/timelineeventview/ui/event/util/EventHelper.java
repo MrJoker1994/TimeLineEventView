@@ -227,7 +227,7 @@ public class EventHelper {
         getV().invalidate();
     }
 
-    private Event getEventUnderTouch(float touchX, float touchY) {
+    public Event getEventUnderTouch(float touchX, float touchY) {
         for (int i = 0; i < events.size(); i++) {
             Event eventModel = events.get(i);
             if (isEventUnderTouch(eventModel, touchX, touchY)) {
@@ -266,37 +266,38 @@ public class EventHelper {
     }
 
     public boolean onTouchEvent(MotionEvent motionEvent) {
-        gestureDetector.onTouchEvent(motionEvent);
-        switch (motionEvent.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                lastTouchY = motionEvent.getY();
-                lastTouchX = motionEvent.getX();
-                break;
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_CANCEL:
-                moveDistanceY = 0;
-                stopScroll();
-                if (hasEventUnderTouch && eventAdjustListener != null) {
-                    eventAdjustListener.onEventAdjustEnd();
-                }
-                if (eventEditingCache != null) {
-                    eventEditingCache.reset();
-                    invalidate();
-                }
-                break;
-            case MotionEvent.ACTION_MOVE:
-                moveDistanceY = motionEvent.getY() - lastTouchY;
-                float moveDistanceX = motionEvent.getX() - lastTouchX;
-                lastTouchY = motionEvent.getY();
-                lastTouchX = motionEvent.getX();
-                if (hasEventUnderTouch) {
-                    checkScroll(lastTouchY);
-                    checkEditEvent(moveDistanceX, moveDistanceY);
-                    return true;
-                }
-                break;
-        }
-        return hasEventUnderTouch;
+//        gestureDetector.onTouchEvent(motionEvent);
+//        switch (motionEvent.getAction()) {
+//            case MotionEvent.ACTION_DOWN:
+//                lastTouchY = motionEvent.getY();
+//                lastTouchX = motionEvent.getX();
+//                break;
+//            case MotionEvent.ACTION_UP:
+//            case MotionEvent.ACTION_CANCEL:
+//                moveDistanceY = 0;
+//                stopScroll();
+//                if (hasEventUnderTouch && eventAdjustListener != null) {
+//                    eventAdjustListener.onEventAdjustEnd();
+//                }
+//                if (eventEditingCache != null) {
+//                    eventEditingCache.reset();
+//                    invalidate();
+//                }
+//                break;
+//            case MotionEvent.ACTION_MOVE:
+//                moveDistanceY = motionEvent.getY() - lastTouchY;
+//                float moveDistanceX = motionEvent.getX() - lastTouchX;
+//                lastTouchY = motionEvent.getY();
+//                lastTouchX = motionEvent.getX();
+//                if (hasEventUnderTouch) {
+//                    checkScroll(lastTouchY);
+//                    checkEditEvent(moveDistanceX, moveDistanceY);
+//                    return true;
+//                }
+//                break;
+//        }
+//        return hasEventUnderTouch;
+        return false;
     }
 
     private boolean checkEditEvent(float moveDistanceX, float moveDistanceY) {
