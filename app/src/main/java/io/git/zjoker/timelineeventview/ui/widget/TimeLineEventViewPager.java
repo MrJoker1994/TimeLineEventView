@@ -1,6 +1,7 @@
 package io.git.zjoker.timelineeventview.ui.widget;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.view.PagerAdapter;
@@ -18,6 +19,7 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
     private int dayCount;
     private PagerAdapter adapter;
     private EventAdjustHelper adjustHelper;
+    private TimeLineEventView curView;
 
     public TimeLineEventViewPager(@NonNull Context context) {
         super(context);
@@ -54,6 +56,12 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
             public void destroyItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
                 container.removeView((View) object);
             }
+
+            @Override
+            public void setPrimaryItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
+                super.setPrimaryItem(container, position, object);
+                curView = (TimeLineEventView) object;
+            }
         };
         setAdapter(adapter);
         adjustHelper = new EventAdjustHelper();
@@ -62,7 +70,7 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
     }
 
     public TimeLineEventView getCurrentView() {
-        return null;
+        return curView;
     }
 
     @Override
@@ -71,6 +79,12 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
             return true;
         }
         return super.dispatchTouchEvent(ev);
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+        adjustHelper.draw(canvas);
     }
 
     @Override
@@ -86,5 +100,9 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
     @Override
     public void onEventAdjustWithScroll(int scrollTo) {
         getCurrentView().onEventAdjustWithScroll(scrollTo);
+    }
+
+    public int getCurrentPosition() {
+        return getCurrentItem();
     }
 }

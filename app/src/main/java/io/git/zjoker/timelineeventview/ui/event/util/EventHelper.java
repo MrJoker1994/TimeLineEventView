@@ -156,7 +156,7 @@ public class EventHelper {
             @Override
             public void onLongPress(MotionEvent e) {
                 super.onLongPress(e);
-                float touchX = e.getX();
+                float touchX = 2000;
                 float touchY = getYWithScroll(e.getY());
 
                 if (eventEditingCache == null) {

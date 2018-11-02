@@ -8,6 +8,7 @@ import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.support.annotation.ColorInt;
+import android.support.v4.view.ViewPager;
 import android.text.Layout;
 import android.text.StaticLayout;
 import android.text.TextPaint;
@@ -106,7 +107,7 @@ public class EventAdjustHelper {
             @Override
             public void onLongPress(MotionEvent e) {
                 super.onLongPress(e);
-                float touchX = e.getX();
+                float touchX = 1500;
                 float touchY = getYWithScroll(e.getY());
 
                 if (eventEditingCache == null) {
@@ -116,7 +117,7 @@ public class EventAdjustHelper {
 //                        events.add(eventUnderTouch);
                     }
                     float xOffset = getCurTimeLineEventView().getRectOnTimeLine(eventUnderTouch.timeStart, eventUnderTouch.timeTaken).left;
-                    eventEditingCache = EventCache.build(eventUnderTouch, xOffset);
+                    eventEditingCache = EventCache.build(eventUnderTouch, xOffset + getV().getCurrentItem() * getV().getWidth());
 
                     hasEventUnderTouch = true;
                     if (eventAdjustListener != null) {
