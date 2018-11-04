@@ -79,7 +79,7 @@ public class EventAdjustHelper {
             public boolean handleMessage(Message msg) {
                 @Size(2) int[] days = (int[]) msg.obj;
                 if (eventAdjustListener != null) {
-                    eventEditingCache.changeDayTo(days[1],(days[1] - days[0]) * getV().getWidth());
+                    eventEditingCache.changeDayTo(days[1], (days[1] - days[0]) * getV().getWidth());
                     eventEditingCache.refreshOrigin();
                     eventAdjustListener.onEventCrossDay(eventEditingCache.originEvent, days[0], days[1]);
                 }
@@ -128,10 +128,10 @@ public class EventAdjustHelper {
             public void onLongPress(MotionEvent e) {
                 super.onLongPress(e);
                 float touchX = e.getX();
-                float touchY = getYWithScroll(e.getY());
+                float touchY = e.getY();
 
                 if (eventEditingCache == null) {
-                    Event eventUnderTouch = getEventUnderTouch(touchX, touchY, getCurTimeLineEventView());
+                    Event eventUnderTouch = getEventUnderTouch(touchX, e.getY(), getCurTimeLineEventView());
                     if (eventUnderTouch == null) {
                         eventUnderTouch = createNewEvent(touchY, getCurTimeLineEventView());
                         if (eventAdjustListener != null) {
@@ -142,7 +142,7 @@ public class EventAdjustHelper {
                     eventEditingCache = EventCache.build(eventUnderTouch, xOffset + getV().getCurrentItem() * getV().getWidth());
 
                     hasEventUnderTouch = true;
-                    getCurTimeLineEventView().onEventAdjusting(eventUnderTouch.timeStart);
+                    getCurTimeLineEventView().onEventAdjusting(getTimeIgnoreDay(eventUnderTouch.timeStart));
                     invalidate();
                 }
             }
@@ -190,19 +190,26 @@ public class EventAdjustHelper {
 
     private Event createNewEvent(float touchY, TimeLineEventView timeLineEventView) {
         long timeStart = timeLineEventView.getTimeByOffsetY(touchY);
+        int hour = (int) (timeStart / (60 * 60 * 1000));
+        timeStart -= (hour * 60 * 60 * 1000);
+        int minute = (int) (timeStart / (60 * 1000));
+        timeStart -= (minute * 60 * 1000);
+        int second = (int) (timeStart / 1000);
+        timeStart -= (second * 1000);
+        int millisSecond = (int) timeStart;
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.DAY_OF_MONTH, getV().getCurrentPosition() + 1);
-        calendar.set(Calendar.HOUR_OF_DAY, 0);
-        calendar.set(Calendar.MINUTE, 0);
-        calendar.set(Calendar.SECOND, 0);
-        calendar.set(Calendar.MILLISECOND, 0);
-        Event event = new Event(calendar.getTimeInMillis() + timeStart, DEFAULT_EVENT_TIME_TAKEN);
+        calendar.set(Calendar.HOUR_OF_DAY, hour);
+        calendar.set(Calendar.MINUTE, minute);
+        calendar.set(Calendar.SECOND, second);
+        calendar.set(Calendar.MILLISECOND, millisSecond);
+        Event event = new Event(calendar.getTimeInMillis(), DEFAULT_EVENT_TIME_TAKEN);
 //        timeLineEventView.addEvent(event);
         return event;
     }
 
     private float getYWithScroll(float touchY) {
-        return touchY + getV().getScrollY();
+        return touchY + getCurTimeLineEventView().getScrollY();
     }
 
     public Event getEventUnderTouch(float touchX, float touchY, TimeLineEventView curTimeLineEventView) {
@@ -217,7 +224,7 @@ public class EventAdjustHelper {
 
     private boolean isEventUnderTouch(Event eventModel, float touchX, float touchY, TimeLineEventView timeLineEventView) {
         RectF rectF = timeLineEventView.getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
-        return rectF.contains(touchX, touchY);
+        return rectF.contains(touchX, getYWithScroll(touchY));
     }
 
     private void invalidate() {
@@ -330,7 +337,7 @@ public class EventAdjustHelper {
             }
 
             invalidate();
-            getCurTimeLineEventView().onEventAdjusting(timeAdjustBound);
+            getCurTimeLineEventView().onEventAdjusting(getTimeIgnoreDay(timeAdjustBound));
 
             return true;
         }
@@ -397,7 +404,7 @@ public class EventAdjustHelper {
 
     private void drawEventOnEdit(Canvas canvas, EventCache eventCache, TimeLineEventView timeLineEventView) {
         RectF rectF = timeLineEventView.getRectOnTimeLine(eventCache.newEvent.timeStart, eventCache.newEvent.timeTaken);
-        rectF.offsetTo(eventCache.newX, rectF.top);
+        rectF.offsetTo(eventCache.newX, rectF.top - getCurTimeLineEventView().getScrollY());
         canvas.drawRect(rectF, eventEditP);
         drawContent(canvas, eventCache.newEvent, rectF);
 

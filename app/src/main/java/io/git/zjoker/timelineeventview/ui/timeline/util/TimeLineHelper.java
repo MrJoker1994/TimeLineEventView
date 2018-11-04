@@ -264,10 +264,12 @@ public class TimeLineHelper {
     public void onEventAdjusting(long timeAdjust) {
         this.eventAdjusting = true;
         this.timeAdjust = timeAdjust;
+        invalidate();
     }
 
     public void onEventAdjustEnd() {
         this.eventAdjusting = false;
+        invalidate();
     }
 
     public interface TimeLineEventWatcher {
