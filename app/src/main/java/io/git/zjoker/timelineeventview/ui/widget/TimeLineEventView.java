@@ -10,14 +10,24 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.ScrollView;
 
+import java.util.Calendar;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import io.git.zjoker.timelineeventview.ui.event.model.Event;
-import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
+import io.git.zjoker.timelineeventview.ui.event.util.EventAdjustHelper;
+import io.git.zjoker.timelineeventview.ui.event.util.EventsHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.util.TimeLineHelper;
 
-public class TimeLineEventView extends ScrollView implements EventHelper.Callback, TimeLineHelper.TimeLineEventWatcher {
+import static io.git.zjoker.timelineeventview.ui.event.util.EventAdjustHelper.DEFAULT_EVENT_TIME_TAKEN;
+import static io.git.zjoker.timelineeventview.ui.event.util.EventAdjustHelper.getTimeIgnoreDay;
+
+public class TimeLineEventView extends ScrollView implements TimeLineHelper.TimeLineEventWatcher {
     private TimeLineHelper timeLineHelper;
-    private EventHelper eventHelper;
+    private EventsHelper eventHelper;
     private SpaceView spaceView;
+    public Set<Event> eventSet;
 
     public TimeLineEventView(@NonNull Context context) {
         super(context);
@@ -35,6 +45,7 @@ public class TimeLineEventView extends ScrollView implements EventHelper.Callbac
     }
 
     private void init() {
+        eventSet = new HashSet<>();
         spaceView = new SpaceView(getContext());
         addView(spaceView);
 
@@ -43,14 +54,12 @@ public class TimeLineEventView extends ScrollView implements EventHelper.Callbac
 
         setSpaceViewHeight((int) timeLineHelper.getTotalHeight());
 
-        eventHelper = new EventHelper();
+        eventHelper = new EventsHelper();
         eventHelper.attach(this);
-
-        eventHelper.setEventAdjustListener(this);
     }
 
     public RectF getRectOnTimeLine(long timeStampStart, long timeTaken) {
-        return timeLineHelper.getRectOnTimeLine(timeStampStart, timeTaken);
+        return timeLineHelper.getRectOnTimeLine(getTimeIgnoreDay(timeStampStart), timeTaken);
     }
 
     public long getTimeByOffsetY(float offSetY) {
@@ -95,17 +104,14 @@ public class TimeLineEventView extends ScrollView implements EventHelper.Callbac
         eventHelper.draw(canvas);
     }
 
-    @Override
     public void onEventAdjusting(long timeAdjust) {
         timeLineHelper.onEventAdjusting(timeAdjust);
     }
 
-    @Override
     public void onEventAdjustEnd() {
         timeLineHelper.onEventAdjustEnd();
     }
 
-    @Override
     public void onEventAdjustWithScroll(int scrollTo) {
         scrollTo(0, scrollTo);
     }
@@ -115,8 +121,13 @@ public class TimeLineEventView extends ScrollView implements EventHelper.Callbac
         setSpaceViewHeight((int) timeLineHelper.getTotalHeight());
     }
 
-    public Event getEventUnderTouch(float touchX, float touchY) {
-        return eventHelper.getEventUnderTouch(touchX,touchY);
+    public Set<Event> getEvents() {
+        return eventSet;
+    }
+
+    public void notifyEvents(Set<Event> events) {
+        this.eventSet = events;
+        invalidate();
     }
 
     private static class SpaceView extends View {

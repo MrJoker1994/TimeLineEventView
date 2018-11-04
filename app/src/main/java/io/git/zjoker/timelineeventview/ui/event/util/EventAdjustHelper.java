@@ -7,7 +7,10 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.ColorInt;
+import android.support.annotation.Size;
 import android.support.v4.view.ViewPager;
 import android.text.Layout;
 import android.text.StaticLayout;
@@ -18,9 +21,11 @@ import android.view.MotionEvent;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import io.git.zjoker.timelineeventview.ui.event.model.Event;
 import io.git.zjoker.timelineeventview.ui.event.model.EventCache;
@@ -31,9 +36,11 @@ import io.git.zjoker.timelineeventview.util.ViewUtil;
 
 import static io.git.zjoker.timelineeventview.ui.event.model.EventCache.STATUS_EDITING;
 import static io.git.zjoker.timelineeventview.ui.event.model.EventCache.STATUS_SCALING_TOP;
+import static io.git.zjoker.timelineeventview.ui.timeline.util.TimeLineHelper.getTotalMilliSecond;
 
 public class EventAdjustHelper {
     public static final long DEFAULT_EVENT_TIME_TAKEN = 50 * 60 * 1000;
+    private final Handler crossDayHandler;
     private WeakReference<TimeLineEventViewPager> timeLineEventViewWR;
 
     private Paint eventSolidP;
@@ -44,7 +51,7 @@ public class EventAdjustHelper {
 
     private float scallerRadius;
     private float scallerPadding;
-    private EventHelper.Callback eventAdjustListener;
+    private EventAdjustHelper.Callback eventAdjustListener;
 
     private float moveDistanceY;
     private float lastTouchY;
@@ -67,6 +74,19 @@ public class EventAdjustHelper {
     public static final int SCALLER_STROKE_COLOR = Color.parseColor("#FFAAAAFF");
 
     public EventAdjustHelper() {
+        crossDayHandler = new Handler(new Handler.Callback() {
+            @Override
+            public boolean handleMessage(Message msg) {
+                @Size(2) int[] days = (int[]) msg.obj;
+                if (eventAdjustListener != null) {
+                    eventEditingCache.changeDayTo(days[1],(days[1] - days[0]) * getV().getWidth());
+                    eventEditingCache.refreshOrigin();
+                    eventAdjustListener.onEventCrossDay(eventEditingCache.originEvent, days[0], days[1]);
+                }
+                return true;
+            }
+        });
+
         eventSolidP = new Paint();
         eventSolidP.setStyle(Paint.Style.FILL);
         eventSolidP.setColor(NORMAL_SOLID_COLOR);
@@ -95,7 +115,7 @@ public class EventAdjustHelper {
 
     private boolean hasEventUnderTouch;
 
-    public void setEventAdjustListener(EventHelper.Callback eventAdjustListener) {
+    public void setEventAdjustListener(Callback eventAdjustListener) {
         this.eventAdjustListener = eventAdjustListener;
     }
 
@@ -107,22 +127,22 @@ public class EventAdjustHelper {
             @Override
             public void onLongPress(MotionEvent e) {
                 super.onLongPress(e);
-                float touchX = 1500;
+                float touchX = e.getX();
                 float touchY = getYWithScroll(e.getY());
 
                 if (eventEditingCache == null) {
-                    Event eventUnderTouch = getCurTimeLineEventView().getEventUnderTouch(touchX, touchY);
+                    Event eventUnderTouch = getEventUnderTouch(touchX, touchY, getCurTimeLineEventView());
                     if (eventUnderTouch == null) {
-                        eventUnderTouch = createEvent(e.getY());
-//                        events.add(eventUnderTouch);
+                        eventUnderTouch = createNewEvent(touchY, getCurTimeLineEventView());
+                        if (eventAdjustListener != null) {
+                            eventAdjustListener.onEventCreated(eventUnderTouch);
+                        }
                     }
                     float xOffset = getCurTimeLineEventView().getRectOnTimeLine(eventUnderTouch.timeStart, eventUnderTouch.timeTaken).left;
                     eventEditingCache = EventCache.build(eventUnderTouch, xOffset + getV().getCurrentItem() * getV().getWidth());
 
                     hasEventUnderTouch = true;
-                    if (eventAdjustListener != null) {
-                        eventAdjustListener.onEventAdjusting(eventUnderTouch.timeStart);
-                    }
+                    getCurTimeLineEventView().onEventAdjusting(eventUnderTouch.timeStart);
                     invalidate();
                 }
             }
@@ -132,13 +152,13 @@ public class EventAdjustHelper {
                 float touchX = e.getX();
                 float touchY = getYWithScroll(e.getY());
                 if (eventEditingCache != null) {
-                    if (isTopScalerUnderTouch(eventEditingCache.newEvent, touchX, touchY)) {
+                    if (isTopScalerUnderTouch(eventEditingCache.newEvent, touchX, touchY, getCurTimeLineEventView())) {
                         eventEditingCache.changeToScaleTop();
                         hasEventUnderTouch = true;
-                    } else if (isBottomScalerUnderTouch(eventEditingCache.newEvent, touchX, touchY)) {
+                    } else if (isBottomScalerUnderTouch(eventEditingCache.newEvent, touchX, touchY, getCurTimeLineEventView())) {
                         eventEditingCache.changeToScaleBottom();
                         hasEventUnderTouch = true;
-                    } else if (isEventUnderTouch(eventEditingCache.newEvent, touchX, touchY)) {
+                    } else if (isEventUnderTouch(eventEditingCache.newEvent, touchX, touchY, getCurTimeLineEventView())) {
                         eventEditingCache.changeToEdit();
                         hasEventUnderTouch = true;
                     } else {
@@ -154,10 +174,13 @@ public class EventAdjustHelper {
             public boolean onSingleTapUp(MotionEvent e) {
                 boolean hasEditingEvent = eventEditingCache != null;
                 if (hasEditingEvent && !hasEventUnderTouch) {
-                    resetEventStatus();
+                    eventEditingCache.refreshOrigin();
+                    getCurTimeLineEventView().onEventAdjustEnd();
                     if (eventAdjustListener != null) {
-                        eventAdjustListener.onEventAdjustEnd();
+                        eventAdjustListener.onEventAdjustEnd(eventEditingCache.newEvent);
                     }
+                    eventEditingCache = null;
+
                     invalidate();
                 }
                 return super.onSingleTapUp(e);
@@ -165,12 +188,35 @@ public class EventAdjustHelper {
         });
     }
 
+    private Event createNewEvent(float touchY, TimeLineEventView timeLineEventView) {
+        long timeStart = timeLineEventView.getTimeByOffsetY(touchY);
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.DAY_OF_MONTH, getV().getCurrentPosition() + 1);
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+        Event event = new Event(calendar.getTimeInMillis() + timeStart, DEFAULT_EVENT_TIME_TAKEN);
+//        timeLineEventView.addEvent(event);
+        return event;
+    }
+
     private float getYWithScroll(float touchY) {
         return touchY + getV().getScrollY();
     }
 
-    private boolean isEventUnderTouch(Event eventModel, float touchX, float touchY) {
-        RectF rectF = getCurTimeLineEventView().getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
+    public Event getEventUnderTouch(float touchX, float touchY, TimeLineEventView curTimeLineEventView) {
+        Set<Event> events = curTimeLineEventView.getEvents();
+        for (Event event : events) {
+            if (isEventUnderTouch(event, touchX, touchY, getCurTimeLineEventView())) {
+                return event;
+            }
+        }
+        return null;
+    }
+
+    private boolean isEventUnderTouch(Event eventModel, float touchX, float touchY, TimeLineEventView timeLineEventView) {
+        RectF rectF = timeLineEventView.getRectOnTimeLine(eventModel.timeStart, eventModel.timeTaken);
         return rectF.contains(touchX, touchY);
     }
 
@@ -178,16 +224,15 @@ public class EventAdjustHelper {
         getV().invalidate();
     }
 
-
-    private boolean isTopScalerUnderTouch(Event editingEvent, float touchX, float touchY) {
-        RectF rectF = getCurTimeLineEventView().getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
+    private boolean isTopScalerUnderTouch(Event editingEvent, float touchX, float touchY, TimeLineEventView timeLineEventView) {
+        RectF rectF = timeLineEventView.getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
 
         PointF topDragHandlerPoint = getTopScallerPoint(rectF);
         return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
     }
 
-    private boolean isBottomScalerUnderTouch(Event editingEvent, float touchX, float touchY) {
-        RectF rectF = getCurTimeLineEventView().getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
+    private boolean isBottomScalerUnderTouch(Event editingEvent, float touchX, float touchY, TimeLineEventView timeLineEventView) {
+        RectF rectF = timeLineEventView.getRectOnTimeLine(editingEvent.timeStart, editingEvent.timeTaken);
         PointF topDragHandlerPoint = getBottomScallerPoint(rectF);
         return getScalerRectF(topDragHandlerPoint.x, topDragHandlerPoint.y).contains(touchX, touchY);
     }
@@ -201,11 +246,29 @@ public class EventAdjustHelper {
         return new RectF(x - halfSize, y - halfSize, x + halfSize, y + halfSize);
     }
 
+    private boolean checkCrossDay(float touchX, float moveDistanceX) {
+        int fromDay = getV().getCurrentPosition();
+        int toDay = fromDay;
+        if (touchX < getCurTimeLineEventView().getWidth() / 6 && moveDistanceX <= 0) {
+            toDay = fromDay - 1;
+        } else if (touchX > getCurTimeLineEventView().getWidth() * 5 / 6 && moveDistanceX >= 0) {
+            toDay = fromDay + 1;
+        }
+        if (fromDay == toDay) {
+            crossDayHandler.removeMessages(1);
+            return false;
+        }
+        stopScroll();
+        if (!crossDayHandler.hasMessages(1)) {
+            Message message = Message.obtain();
+            message.what = 1;
+            message.obj = new int[]{fromDay, toDay};
+            crossDayHandler.sendMessageDelayed(message, 700);
+        }
 
-    private Event createEvent(float touchY) {
-        long timeStart = getCurTimeLineEventView().getTimeByOffsetY(touchY);
-        return new Event(timeStart, DEFAULT_EVENT_TIME_TAKEN);
+        return true;
     }
+
 
     public boolean onTouchEvent(MotionEvent motionEvent) {
         gestureDetector.onTouchEvent(motionEvent);
@@ -218,8 +281,9 @@ public class EventAdjustHelper {
             case MotionEvent.ACTION_CANCEL:
                 moveDistanceY = 0;
                 stopScroll();
-                if (hasEventUnderTouch && eventAdjustListener != null) {
-                    eventAdjustListener.onEventAdjustEnd();
+                crossDayHandler.removeMessages(1);
+                if (hasEventUnderTouch) {
+                    getCurTimeLineEventView().onEventAdjustEnd();
                 }
                 if (eventEditingCache != null) {
                     eventEditingCache.reset();
@@ -232,8 +296,10 @@ public class EventAdjustHelper {
                 lastTouchY = motionEvent.getY();
                 lastTouchX = motionEvent.getX();
                 if (hasEventUnderTouch) {
-                    checkScroll(lastTouchY);
-                    checkEditEvent(moveDistanceX, moveDistanceY);
+                    if (!checkCrossDay(lastTouchX, moveDistanceX)) {
+                        checkScroll(lastTouchY, getCurTimeLineEventView());
+                    }
+                    checkEditEvent(moveDistanceX, moveDistanceY, getCurTimeLineEventView());
                     return true;
                 }
                 break;
@@ -241,9 +307,9 @@ public class EventAdjustHelper {
         return hasEventUnderTouch;
     }
 
-    private boolean checkEditEvent(float moveDistanceX, float moveDistanceY) {
+    private boolean checkEditEvent(float moveDistanceX, float moveDistanceY, TimeLineEventView timeLineEventView) {
         if ((moveDistanceY != 0 || moveDistanceX != 0) && eventEditingCache != null) {
-            long timeAdjust = getCurTimeLineEventView().getTimeByDistance(moveDistanceY);
+            long timeAdjust = timeLineEventView.getTimeByDistance(moveDistanceY);
             Log.d("checkEditEvent", moveDistanceX + "--");
             long timeAdjustBound;
             if (eventEditingCache.status == STATUS_EDITING) {
@@ -264,21 +330,20 @@ public class EventAdjustHelper {
             }
 
             invalidate();
-            if (eventAdjustListener != null) {
-                eventAdjustListener.onEventAdjusting(timeAdjustBound);
-            }
+            getCurTimeLineEventView().onEventAdjusting(timeAdjustBound);
+
             return true;
         }
         return false;
     }
 
-    private boolean checkScroll(float touchY) {
+    private boolean checkScroll(float touchY, TimeLineEventView timeLineEventView) {
         int adjustSpace = getV().getHeight() / 8;
-        if (touchY < adjustSpace && moveDistanceY <= 0 && getCurTimeLineEventView().canScroll(false)) {
-            startScroll(false);
+        if (touchY < adjustSpace && moveDistanceY <= 0 && timeLineEventView.canScroll(false)) {
+            startScroll(false, timeLineEventView);
             return true;
-        } else if (touchY > getV().getHeight() - adjustSpace && moveDistanceY >= 0 && getCurTimeLineEventView().canScroll(true)) {
-            startScroll(true);
+        } else if (touchY > getV().getHeight() - adjustSpace && moveDistanceY >= 0 && timeLineEventView.canScroll(true)) {
+            startScroll(true, timeLineEventView);
             return true;
         } else {
             stopScroll();
@@ -286,7 +351,7 @@ public class EventAdjustHelper {
         return false;
     }
 
-    private void startScroll(final boolean isScrollUp) {
+    private void startScroll(final boolean isScrollUp, final TimeLineEventView timeLineEventView) {
         if (scrollAnimator != null && scrollAnimator.isRunning()) {
             return;
         }
@@ -295,7 +360,7 @@ public class EventAdjustHelper {
         int target;
         if (isScrollUp) {
             from = getV().getScrollY();
-            target = getCurTimeLineEventView().getTotalHeight() - getV().getHeight();
+            target = timeLineEventView.getTotalHeight() - getV().getHeight();
         } else {
             from = getV().getScrollY();
             target = 0;
@@ -307,10 +372,8 @@ public class EventAdjustHelper {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 int scrollTo = (int) animation.getAnimatedValue();
-                if (eventAdjustListener != null) {
-                    eventAdjustListener.onEventAdjustWithScroll(scrollTo);
-                }
-                checkEditEvent(0, scrollTo - lastScrollBy);//滚动距离+滚动时的move距离
+                getCurTimeLineEventView().onEventAdjustWithScroll(scrollTo);
+                checkEditEvent(0, scrollTo - lastScrollBy, timeLineEventView);//滚动距离+滚动时的move距离
                 lastScrollBy = scrollTo;
             }
         });
@@ -325,17 +388,15 @@ public class EventAdjustHelper {
 
     public void draw(Canvas canvas) {
         if (eventEditingCache != null) {
-            drawEventOnEdit(canvas, eventEditingCache);
+            drawEventOnEdit(canvas, eventEditingCache, getCurTimeLineEventView());
         }
     }
 
     private void resetEventStatus() {
-        eventEditingCache.refreshOrigin();
-        eventEditingCache = null;
     }
 
-    private void drawEventOnEdit(Canvas canvas, EventCache eventCache) {
-        RectF rectF = getCurTimeLineEventView().getRectOnTimeLine(eventCache.newEvent.timeStart, eventCache.newEvent.timeTaken);
+    private void drawEventOnEdit(Canvas canvas, EventCache eventCache, TimeLineEventView timeLineEventView) {
+        RectF rectF = timeLineEventView.getRectOnTimeLine(eventCache.newEvent.timeStart, eventCache.newEvent.timeTaken);
         rectF.offsetTo(eventCache.newX, rectF.top);
         canvas.drawRect(rectF, eventEditP);
         drawContent(canvas, eventCache.newEvent, rectF);
@@ -392,12 +453,18 @@ public class EventAdjustHelper {
         return getV().getCurrentView();
     }
 
+    public static long getTimeIgnoreDay(long originTime) {
+        Calendar instance = Calendar.getInstance();
+        instance.setTimeInMillis(originTime);
+        return instance.get(Calendar.HOUR_OF_DAY) * 60 * 60 * 1000 + instance.get(Calendar.MINUTE) * 60 * 1000 + instance.get(Calendar.SECOND) * 1000 + instance.get(Calendar.MILLISECOND);
+    }
+
     public interface Callback {
-        void onEventAdjusting(long timeAdjust);
+        void onEventCreated(Event newEvent);
 
-        void onEventAdjustEnd();
+        void onEventAdjustEnd(Event newEvent);
 
-        void onEventAdjustWithScroll(int scrollTo);
+        void onEventCrossDay(Event event, int fromDay, int toDay);
     }
 
     public void dettach() {
@@ -407,12 +474,7 @@ public class EventAdjustHelper {
         if (timeLineEventViewWR != null) {
             timeLineEventViewWR.clear();
         }
-    }
 
-    private Comparator<Event> eventComparator = new Comparator<Event>() {
-        @Override
-        public int compare(Event o1, Event o2) {
-            return (int) (o1.timeStart - o2.timeStart);
-        }
-    };
+        crossDayHandler.removeMessages(1);
+    }
 }

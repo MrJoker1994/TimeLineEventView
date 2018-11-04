@@ -1,5 +1,7 @@
 package io.git.zjoker.timelineeventview.ui.event.model;
 
+import java.util.Calendar;
+
 public class EventCache {
     public static final int STATUS_EDITING = 1;
     public static final int STATUS_SCALING_TOP = 2;
@@ -43,6 +45,16 @@ public class EventCache {
     public void scaleTopBy(long timeAdjust) {
         moveBy(0, timeAdjust);
         scaleBottomBy(-timeAdjust);
+    }
+
+    public void changeDayTo(int toDay, float xOffSet) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(newEvent.timeStart);
+        calendar.set(Calendar.DAY_OF_MONTH, toDay);
+        newEvent.timeStart = calendar.getTimeInMillis();
+
+        moveBy(xOffSet, 0);
+        originX += xOffSet;
     }
 
     public void scaleBottomBy(long timeAdjust) {

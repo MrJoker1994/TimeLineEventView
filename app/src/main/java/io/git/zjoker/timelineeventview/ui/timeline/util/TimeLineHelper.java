@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
 
+import io.git.zjoker.timelineeventview.ui.event.util.EventAdjustHelper;
 import io.git.zjoker.timelineeventview.ui.timeline.model.TimeLineModel;
 import io.git.zjoker.timelineeventview.util.ViewUtil;
 
@@ -225,15 +226,14 @@ public class TimeLineHelper {
         return getRV().getPaddingTop() + topSpace;
     }
 
-    private int getTotalMilliSecond() {
+    public static int getTotalMilliSecond() {
         return (TIME_LINE_TOTAL_COUNT - 1) * 60 * 60 * 1000;
     }
 
     private void drawCurTimeLine(Canvas canvas) {
-        float totalSecond = getTotalMilliSecond() * 1f;
-        Calendar instance = Calendar.getInstance();
-        long curSecond = instance.get(Calendar.HOUR_OF_DAY) * 60 * 60 * 1000 + instance.get(Calendar.MINUTE) * 60 * 1000 + instance.get(Calendar.SECOND) * 1000 + instance.get(Calendar.MILLISECOND);
+        long curSecond = EventAdjustHelper.getTimeIgnoreDay(Calendar.getInstance().getTimeInMillis());
 
+        float totalSecond = getTotalMilliSecond() * 1f;
         float yOffset = curSecond / totalSecond * getAllLineHeight() + getTopOffset();
         canvas.drawLine(lineStartX, yOffset, lineEndX, yOffset, curTimeP);
     }

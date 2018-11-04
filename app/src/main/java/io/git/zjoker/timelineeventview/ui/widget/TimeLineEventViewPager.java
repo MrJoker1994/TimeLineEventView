@@ -2,25 +2,30 @@ package io.git.zjoker.timelineeventview.ui.widget;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
 import android.util.AttributeSet;
+import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.util.Calendar;
+import java.util.HashSet;
+import java.util.Set;
+
+import io.git.zjoker.timelineeventview.ui.event.model.Event;
 import io.git.zjoker.timelineeventview.ui.event.util.EventAdjustHelper;
-import io.git.zjoker.timelineeventview.ui.event.util.EventHelper;
 import io.git.zjoker.timelineeventview.util.DateUtil;
 
-public class TimeLineEventViewPager extends ViewPager implements EventHelper.Callback {
-    private int dayCount;
+public class TimeLineEventViewPager extends ViewPager implements EventAdjustHelper.Callback {
     private PagerAdapter adapter;
     private EventAdjustHelper adjustHelper;
     private TimeLineEventView curView;
-
+    private SparseArray<Set<Event>> allEvents;
     public TimeLineEventViewPager(@NonNull Context context) {
         super(context);
         init();
@@ -31,12 +36,21 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
         init();
     }
 
+    private void buildEventMap() {
+        int dayCount = DateUtil.getCurrentMonthDay();
+        allEvents = new SparseArray<>();
+        for (int i = 0; i < dayCount; i++) {
+            allEvents.put(i + 1, new HashSet<Event>());
+        }
+    }
+
     private void init() {
-        dayCount = DateUtil.getCurrentMonthDay();
+        buildEventMap();
+
         adapter = new PagerAdapter() {
             @Override
             public int getCount() {
-                return dayCount;
+                return allEvents.size();
             }
 
             @Override
@@ -49,6 +63,7 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
             public Object instantiateItem(@NonNull ViewGroup container, int position) {
                 TimeLineEventView timeLineEventView = new TimeLineEventView(getContext());
                 container.addView(timeLineEventView, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                timeLineEventView.notifyEvents(allEvents.get(position + 1));
                 return timeLineEventView;
             }
 
@@ -61,11 +76,14 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
             public void setPrimaryItem(@NonNull ViewGroup container, int position, @NonNull Object object) {
                 super.setPrimaryItem(container, position, object);
                 curView = (TimeLineEventView) object;
+                curView.notifyEvents(allEvents.get(position + 1));
             }
         };
+
         setAdapter(adapter);
         adjustHelper = new EventAdjustHelper();
         adjustHelper.setEventAdjustListener(this);
+
         adjustHelper.attach(this);
     }
 
@@ -87,22 +105,37 @@ public class TimeLineEventViewPager extends ViewPager implements EventHelper.Cal
         adjustHelper.draw(canvas);
     }
 
-    @Override
-    public void onEventAdjusting(long timeAdjust) {
-        getCurrentView().onEventAdjusting(timeAdjust);
-    }
-
-    @Override
-    public void onEventAdjustEnd() {
-        getCurrentView().onEventAdjustEnd();
-    }
-
-    @Override
-    public void onEventAdjustWithScroll(int scrollTo) {
-        getCurrentView().onEventAdjustWithScroll(scrollTo);
-    }
-
     public int getCurrentPosition() {
         return getCurrentItem();
+    }
+
+    @Override
+    public void onEventCreated(Event newEvent) {
+        int day = getCurrentPosition() + 1;
+        Set<Event> events = allEvents.get(day);
+        events.add(newEvent);
+        curView.notifyEvents(events);
+    }
+
+    @Override
+    public void onEventAdjustEnd(Event newEvent) {
+        int day = getCurrentPosition() + 1;
+        Set<Event> events = allEvents.get(day);
+        events.remove(newEvent);
+        events.add(newEvent);
+        curView.notifyEvents(events);
+    }
+
+    @Override
+    public void onEventCrossDay(Event event, int fromPosition, int toPosition) {
+        if (toPosition < 0 || toPosition > allEvents.size() - 1) {
+            return;
+        }
+        int fromDay = fromPosition + 1;
+        int toDay = toPosition + 1;
+        allEvents.get(fromDay).remove(event);
+        allEvents.get(toDay).add(event);
+        curView.notifyEvents(allEvents.get(fromDay));
+        setCurrentItem(toPosition);
     }
 }
