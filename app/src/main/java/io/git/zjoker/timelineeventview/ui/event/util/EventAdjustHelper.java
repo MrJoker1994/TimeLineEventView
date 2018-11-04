@@ -366,10 +366,10 @@ public class EventAdjustHelper {
         final int from;
         int target;
         if (isScrollUp) {
-            from = getV().getScrollY();
+            from = timeLineEventView.getScrollY();
             target = timeLineEventView.getTotalHeight() - getV().getHeight();
         } else {
-            from = getV().getScrollY();
+            from = timeLineEventView.getScrollY();
             target = 0;
         }
         scrollAnimator = ObjectAnimator.ofInt(from, target).setDuration(Math.abs(target - from));
@@ -405,6 +405,7 @@ public class EventAdjustHelper {
     private void drawEventOnEdit(Canvas canvas, EventCache eventCache, TimeLineEventView timeLineEventView) {
         RectF rectF = timeLineEventView.getRectOnTimeLine(eventCache.newEvent.timeStart, eventCache.newEvent.timeTaken);
         rectF.offsetTo(eventCache.newX, rectF.top - getCurTimeLineEventView().getScrollY());
+        Log.d("drawEventOnEdit", String.valueOf(rectF.top));
         canvas.drawRect(rectF, eventEditP);
         drawContent(canvas, eventCache.newEvent, rectF);
 
